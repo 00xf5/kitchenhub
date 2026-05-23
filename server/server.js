@@ -10,6 +10,7 @@ const multer     = require('multer');
 const cors       = require('cors');
 const path       = require('path');
 const fs         = require('fs');
+const os         = require('os');
 const { v4: uuidv4 } = require('uuid');
 
 const app    = express();
@@ -17,9 +18,13 @@ const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 
 const PORT           = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
+const SCREENSHOTS_DIR = path.join(os.tmpdir(), 'kitchenhub_screenshots');
 
-if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+} catch (err) {
+  console.error('[SERVER] Could not create screenshots directory:', err.message);
+}
 
 // ── In-memory stores ────────────────────────────────────────────────
 /** @type {Map<string, { ws: WebSocket, info: object }>} */
