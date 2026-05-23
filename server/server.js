@@ -16,7 +16,7 @@ const app    = express();
 const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 
-const PORT           = process.env.PORT || 3001;
+const PORT           = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
 
 if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
@@ -347,8 +347,8 @@ wss.on('connection', (ws) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────
-server.listen(PORT, () => {
-  console.log(`[SERVER] KitchenHub relay running on http://localhost:${PORT}`);
-  console.log(`[SERVER] WebSocket ready on ws://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[SERVER] KitchenHub relay running on http://0.0.0.0:${PORT}`);
+  console.log(`[SERVER] WebSocket ready on ws://0.0.0.0:${PORT}`);
   console.log(`[SERVER] Screenshots stored in: ${SCREENSHOTS_DIR}`);
 });
