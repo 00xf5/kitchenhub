@@ -19,7 +19,11 @@ const wss    = new WebSocketServer({ server });
 const PORT           = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
 const SCREENSHOTS_DIR = path.join(__dirname, 'screenshots');
 
-if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+try {
+  if (!fs.existsSync(SCREENSHOTS_DIR)) fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+} catch (err) {
+  console.warn('[SERVER] Could not create screenshots dir:', err.message);
+}
 
 // ── In-memory stores ────────────────────────────────────────────────
 /** @type {Map<string, { ws: WebSocket, info: object }>} */
