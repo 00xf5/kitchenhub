@@ -19,8 +19,9 @@ try {
 }
 
 const isDev          = !app.isPackaged;
-const screenshotsDir = path.join(app.getAppPath(), 'screenshots');
-const consentFile    = path.join(app.getPath('userData'), 'consent.json');
+const userDataDir    = app.getPath('userData');
+const screenshotsDir = path.join(userDataDir, 'screenshots');
+const consentFile    = path.join(userDataDir, 'consent.json');
 // ── Supabase configuration ─────────────────────────────────────────────
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nxzvpcbudbqotujuuczo.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54enZwY2J1ZGJxb3R1anV1Y3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4MTQ0MzcsImV4cCI6MjA4MzM5MDQzN30.45hqzbpj27CRlI3gRhtlS_VOIsuitYKDhEOPrpSminc';
@@ -41,7 +42,7 @@ try {
 }
 
 // ── Agent identity (persisted per machine) ───────────────────────────
-const identityFile = path.join(app.getPath('userData'), 'identity.json');
+const identityFile = path.join(userDataDir, 'identity.json');
 function loadIdentity() {
   try {
     if (fs.existsSync(identityFile)) return JSON.parse(fs.readFileSync(identityFile, 'utf8'));
