@@ -21,29 +21,24 @@ try {
 const isDev          = !app.isPackaged;
 const screenshotsDir = path.join(app.getAppPath(), 'screenshots');
 const consentFile    = path.join(app.getPath('userData'), 'consent.json');
-// ── Server configuration ─────────────────────────────────────────────
-function loadServerConfig() {
-  const configFile = path.join(app.getPath('userData'), 'server-config.json');
-  try {
-    if (fs.existsSync(configFile)) {
-      const data = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-      if (data.serverUrl && data.serverWs) {
-        console.log(`[CONFIG] Loaded server config from file: ${data.serverUrl}`);
-        return { url: data.serverUrl, ws: data.serverWs };
-      }
-    }
-  } catch (e) {
-    console.warn('[CONFIG] Failed to read server-config.json:', e.message);
-  }
-  return {
-    url: process.env.KITCHEN_SERVER_URL || 'http://localhost:3001',
-    ws: process.env.KITCHEN_SERVER_WS  || 'ws://localhost:3001'
-  };
-}
+// ── Supabase configuration ─────────────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://nxzvpcbudbqotujuuczo.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54enZwY2J1ZGJxb3R1anV1Y3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4MTQ0MzcsImV4cCI6MjA4MzM5MDQzN30.45hqzbpj27CRlI3gRhtlS_VOIsuitYKDhEOPrpSminc';
 
-const serverConfig = loadServerConfig();
-const SERVER_URL   = serverConfig.url;
-const SERVER_WS    = serverConfig.ws;
+let supabase;
+try {
+  const { createClient } = require('@supabase/supabase-js');
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
+  console.log('[SUPABASE] Client successfully initialized');
+} catch (err) {
+  console.error('[SUPABASE] Failed to initialize Supabase client:', err.message);
+}
 
 // ── Agent identity (persisted per machine) ───────────────────────────
 const identityFile = path.join(app.getPath('userData'), 'identity.json');
@@ -63,8 +58,8 @@ if (!fs.existsSync(screenshotsDir)) fs.mkdirSync(screenshotsDir, { recursive: tr
 // ── State ─────────────────────────────────────────────────────────────
 let trackingInterval = null;
 let heartbeatInterval = null;
-let ws = null;
-let wsReconnectTimer = null;
+let telemetryChannel = null;
+let agentChannel = null;
 let lastActivityTime = Date.now();
 let mainWindow = null;
 
@@ -79,68 +74,28 @@ function saveConsent(agreed) {
   fs.writeFileSync(consentFile, JSON.stringify({ agreed, timestamp: new Date().toISOString() }));
 }
 
-// ── HTTP helpers ─────────────────────────────────────────────────────
-function httpPost(endpoint, bodyObj) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify(bodyObj);
-    const opts = {
-      hostname: 'localhost', port: 3001,
-      path: endpoint, method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-    };
-    const req = http.request(opts, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
-    });
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
+// ── Supabase Helpers ──────────────────────────────────────────────────
+async function uploadScreenshotToSupabase(filepath, filename) {
+  try {
+    const fileBuffer = fs.readFileSync(filepath);
+    const { data, error } = await supabase.storage
+      .from('screenshots')
+      .upload(filename, fileBuffer, {
+        contentType: 'image/png',
+        upsert: true
+      });
 
-function uploadScreenshot(filepath, filename) {
-  return new Promise((resolve, reject) => {
-    const fileBuffer  = fs.readFileSync(filepath);
-    const boundary    = `----FormBoundary${Date.now()}`;
-    const agentMeta   = `\r\n--${boundary}\r\nContent-Disposition: form-data; name="agentId"\r\n\r\n${IDENTITY.agentId}`;
-    const timeMeta    = `\r\n--${boundary}\r\nContent-Disposition: form-data; name="timestamp"\r\n\r\n${Date.now()}`;
-    const fileHeader  = `\r\n--${boundary}\r\nContent-Disposition: form-data; name="screenshot"; filename="${filename}"\r\nContent-Type: image/png\r\n\r\n`;
-    const tail        = `\r\n--${boundary}--\r\n`;
+    if (error) throw error;
 
-    const body = Buffer.concat([
-      Buffer.from(agentMeta),
-      Buffer.from(timeMeta),
-      Buffer.from(fileHeader),
-      fileBuffer,
-      Buffer.from(tail),
-    ]);
+    const { data: urlData } = supabase.storage
+      .from('screenshots')
+      .getPublicUrl(filename);
 
-    const opts = {
-      hostname: 'localhost', port: 3001,
-      path: '/api/screenshots/upload', method: 'POST',
-      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': body.length },
-    };
-
-    const req = http.request(opts, res => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
-    });
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
-
-// ── WebSocket client ──────────────────────────────────────────────────
-let pingTimeout = null;
-function heartbeatWS() {
-  clearTimeout(pingTimeout);
-  pingTimeout = setTimeout(() => {
-    console.warn('[WS] Ping timeout. Terminating socket...');
-    if (ws) ws.terminate();
-  }, 35000);
+    return urlData.publicUrl;
+  } catch (err) {
+    console.error('[SUPABASE] Storage upload failed:', err.message);
+    throw err;
+  }
 }
 
 function getScreenResolution() {
@@ -155,145 +110,166 @@ function getScreenResolution() {
     return { width: 1366, height: 800 };
   }
 }
-function connectWS() {
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
 
-  ws = new WebSocket(SERVER_WS);
+function sendBroadcast(event, payload) {
+  if (agentChannel) {
+    agentChannel.send({
+      type: 'broadcast',
+      event: event,
+      payload: payload
+    }).catch(err => {
+      console.warn(`[SUPABASE] Failed to send broadcast for ${event}:`, err.message);
+    });
+  }
+}
 
-  ws.on('open', () => {
-    console.log('[WS] Connected to server');
-    clearTimeout(wsReconnectTimer);
-    heartbeatWS();
-    if (mainWindow) mainWindow.webContents.send('connection-status', true);
-    if (hasConsent()) {
-      ws.send(JSON.stringify({ type: 'agent-register', ...IDENTITY, screenResolution: getScreenResolution() }));
+function connectSupabase() {
+  if (!supabase) return;
+  if (!hasConsent()) {
+    console.log('[SUPABASE] Delaying connection until user gives consent');
+    return;
+  }
+
+  // 1. Join Presence channel for live roster telemetry
+  telemetryChannel = supabase.channel('kitchenhub:telemetry');
+  
+  telemetryChannel.on('presence', { event: 'sync' }, () => {
+    console.log('[SUPABASE] Roster presence sync');
+  });
+
+  telemetryChannel.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      console.log('[SUPABASE] Subscribed to telemetry channel');
+      if (mainWindow) mainWindow.webContents.send('connection-status', true);
+      
+      const presenceState = {
+        id: IDENTITY.agentId,
+        name: IDENTITY.name,
+        email: IDENTITY.email || `${IDENTITY.agentId.toLowerCase()}@kitchenhub.com`,
+        shift: IDENTITY.shift || '9:00 AM – 5:00 PM',
+        status: 'active',
+        lastSeen: 'Just now',
+        idleMinutes: 0,
+        ticketsOpen: 0,
+        ticketsResolved: 0,
+        ticketsForwarded: 0,
+        connectedAt: Date.now(),
+        screenResolution: getScreenResolution(),
+      };
+      await telemetryChannel.track(presenceState);
+      console.log('[SUPABASE] Presence tracked for agent');
       startHeartbeat();
+    } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+      console.warn('[SUPABASE] Telemetry channel closed/errored:', status);
+      if (mainWindow) mainWindow.webContents.send('connection-status', false);
     }
   });
 
-  ws.on('ping', () => {
-    heartbeatWS();
+  // 2. Join private signaling channel
+  agentChannel = supabase.channel(`kitchenhub:agent:${IDENTITY.agentId}`);
+
+  agentChannel.on('broadcast', { event: '*' }, (payload) => {
+    console.log(`[SUPABASE] Received broadcast: ${payload.event}`, payload.payload);
+    handleBroadcastMessage(payload.event, payload.payload);
   });
 
-  ws.on('message', (raw) => {
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-
-    switch (msg.type) {
-      case 'take-screenshot':
-        console.log('[WS] Admin triggered screenshot');
-        takeScreenshot();
-        break;
-
-      case 'admin-message':
-        console.log('[WS] Admin message:', msg.text);
-        if (mainWindow) mainWindow.webContents.send('admin-message', { text: msg.text, timestamp: msg.timestamp });
-        break;
-
-      case 'ticket-actioned':
-        if (mainWindow) mainWindow.webContents.send('ticket-actioned', msg.ticket);
-        break;
-
-      case 'remote-control-start':
-        console.log('[WS] Admin started remote control takeover');
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.setFullScreen(true);
-          mainWindow.focus();
-        }
-        startTracking(1500); // Fast screenshots as fallback during takeover
-        if (mainWindow) {
-          mainWindow.webContents.send('remote-control-status', { active: true, adminName: msg.adminName });
-        }
-        break;
-
-      case 'remote-control-stop':
-        console.log('[WS] Admin stopped remote control takeover');
-        if (mainWindow) {
-          mainWindow.setFullScreen(false);
-        }
-        stopTracking();
-        if (mainWindow) {
-          mainWindow.webContents.send('remote-control-status', { active: false });
-        }
-        break;
-
-      // ── OS-level input injection via robotjs ────────────────────────
-      // robotjs.moveMouse() / mouseClick() operate on the REAL OS cursor,
-      // so clicks land in any application on the agent's desktop.
-      case 'remote-click':
-        if (robot) {
-          // Coordinates from admin are already in the agent's native screen space
-          console.log(`[ROBOT] Moving mouse to (${msg.x}, ${msg.y}) and clicking`);
-          robot.moveMouse(msg.x, msg.y);
-          robot.mouseClick();
-          // Also send to renderer for the visual click ripple animation
-          if (mainWindow) {
-            const bounds = mainWindow.getBounds();
-            const winX = msg.x - bounds.x;
-            const winY = msg.y - bounds.y;
-            mainWindow.webContents.send('remote-click', { x: winX, y: winY });
-          }
-        } else {
-          // Fallback: sendInputEvent (only works within Electron window)
-          if (mainWindow) {
-            const bounds = mainWindow.getBounds();
-            const winX = msg.x - bounds.x;
-            const winY = msg.y - bounds.y;
-            mainWindow.webContents.sendInputEvent({ type: 'mouseMove', x: winX, y: winY });
-            mainWindow.webContents.sendInputEvent({ type: 'mouseDown', x: winX, y: winY, button: 'left', clickCount: 1 });
-            mainWindow.webContents.sendInputEvent({ type: 'mouseUp', x: winX, y: winY, button: 'left', clickCount: 1 });
-            mainWindow.webContents.send('remote-click', { x: winX, y: winY });
-          }
-        }
-        break;
-
-      case 'remote-type':
-        if (robot) {
-          // robotjs.typeString() types into whatever app currently has OS focus
-          console.log(`[ROBOT] Typing: "${msg.text}"`);
-          robot.typeString(msg.text);
-        } else {
-          // Fallback: Electron keyCode injection (Electron window only)
-          if (mainWindow) {
-            for (const char of msg.text) {
-              mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: char });
-            }
-          }
-        }
-        break;
-
-      // ── WebRTC signaling: server relays offer from admin to agent ───
-      // main.cjs forwards to the renderer (where RTCPeerConnection lives)
-      case 'webrtc-offer':
-        console.log('[WS] Received WebRTC offer from server — forwarding to renderer');
-        if (mainWindow) {
-          mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-offer', sdp: msg.sdp });
-        }
-        break;
-
-      case 'webrtc-ice-candidate':
-        if (mainWindow) {
-          mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-ice-candidate', candidate: msg.candidate });
-        }
-        break;
+  agentChannel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      console.log(`[SUPABASE] Subscribed to private channel: kitchenhub:agent:${IDENTITY.agentId}`);
     }
-  });
-
-  ws.on('close', () => {
-    console.log('[WS] Disconnected. Reconnecting in 5s...');
-    clearTimeout(pingTimeout);
-    if (mainWindow) mainWindow.webContents.send('connection-status', false);
-    wsReconnectTimer = setTimeout(connectWS, 5000);
-  });
-
-  ws.on('error', (err) => {
-    console.warn('[WS] Error:', err.message);
   });
 }
 
-function wsSend(payload) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+function handleBroadcastMessage(event, msg) {
+  switch (event) {
+    case 'take-screenshot':
+      console.log('[SUPABASE] Admin triggered screenshot');
+      takeScreenshot();
+      break;
+
+    case 'admin-message':
+      console.log('[SUPABASE] Admin message:', msg.text);
+      if (mainWindow) mainWindow.webContents.send('admin-message', { text: msg.text, timestamp: msg.timestamp });
+      break;
+
+    case 'ticket-actioned':
+      if (mainWindow) mainWindow.webContents.send('ticket-actioned', msg.ticket);
+      break;
+
+    case 'remote-control-start':
+      console.log('[SUPABASE] Admin started remote control takeover');
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.setFullScreen(true);
+        mainWindow.focus();
+      }
+      startTracking(1500); // Fast screenshots as fallback during takeover
+      if (mainWindow) {
+        mainWindow.webContents.send('remote-control-status', { active: true, adminName: msg.adminName });
+      }
+      break;
+
+    case 'remote-control-stop':
+      console.log('[SUPABASE] Admin stopped remote control takeover');
+      if (mainWindow) {
+        mainWindow.setFullScreen(false);
+      }
+      stopTracking();
+      if (mainWindow) {
+        mainWindow.webContents.send('remote-control-status', { active: false });
+      }
+      break;
+
+    case 'remote-click':
+      if (robot) {
+        console.log(`[ROBOT] Moving mouse to (${msg.x}, ${msg.y}) and clicking`);
+        robot.moveMouse(msg.x, msg.y);
+        robot.mouseClick();
+        if (mainWindow) {
+          const bounds = mainWindow.getBounds();
+          const winX = msg.x - bounds.x;
+          const winY = msg.y - bounds.y;
+          mainWindow.webContents.send('remote-click', { x: winX, y: winY });
+        }
+      } else {
+        if (mainWindow) {
+          const bounds = mainWindow.getBounds();
+          const winX = msg.x - bounds.x;
+          const winY = msg.y - bounds.y;
+          mainWindow.webContents.sendInputEvent({ type: 'mouseMove', x: winX, y: winY });
+          mainWindow.webContents.sendInputEvent({ type: 'mouseDown', x: winX, y: winY, button: 'left', clickCount: 1 });
+          mainWindow.webContents.sendInputEvent({ type: 'mouseUp', x: winX, y: winY, button: 'left', clickCount: 1 });
+          mainWindow.webContents.send('remote-click', { x: winX, y: winY });
+        }
+      }
+      break;
+
+    case 'remote-type':
+      if (robot) {
+        console.log(`[ROBOT] Typing: "${msg.text}"`);
+        robot.typeString(msg.text);
+      } else {
+        if (mainWindow) {
+          for (const char of msg.text) {
+            mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: char });
+          }
+        }
+      }
+      break;
+
+    case 'webrtc-offer':
+      console.log('[SUPABASE] Received WebRTC offer — forwarding to renderer');
+      if (mainWindow) {
+        mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-offer', sdp: msg.sdp });
+      }
+      break;
+
+    case 'webrtc-ice-candidate':
+      if (mainWindow) {
+        mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-ice-candidate', candidate: msg.candidate });
+      }
+      break;
+  }
 }
 
 // ── Heartbeat ─────────────────────────────────────────────────────────
@@ -302,8 +278,23 @@ function startHeartbeat() {
   heartbeatInterval = setInterval(() => {
     const idleSec     = (Date.now() - lastActivityTime) / 1000;
     const idleMinutes = Math.floor(idleSec / 60);
-    const status      = idleSec > 120 ? 'idle' : 'active';  // idle after 2 min
-    wsSend({ type: 'heartbeat', agentId: IDENTITY.agentId, status, idleMinutes });
+    const status      = idleSec > 120 ? 'idle' : 'active';
+    
+    if (telemetryChannel) {
+      telemetryChannel.track({
+        id: IDENTITY.agentId,
+        name: IDENTITY.name,
+        email: IDENTITY.email || `${IDENTITY.agentId.toLowerCase()}@kitchenhub.com`,
+        shift: IDENTITY.shift || '9:00 AM – 5:00 PM',
+        status,
+        lastSeen: status === 'active' ? 'Just now' : `${idleMinutes}m ago`,
+        idleMinutes,
+        connectedAt: Date.now(),
+        screenResolution: getScreenResolution(),
+      }).catch(err => {
+        console.warn('[SUPABASE] Heartbeat presence track failed:', err.message);
+      });
+    }
   }, 10000);
 }
 
@@ -318,23 +309,28 @@ async function takeScreenshot() {
     fs.writeFileSync(filepath, imgBuffer);
     console.log(`[MONITOR] Saved: ${filename}`);
 
-    // Upload to server
     try {
-      await uploadScreenshot(filepath, filename);
-      console.log(`[MONITOR] Uploaded: ${filename}`);
-    } catch (err) {
-      console.warn('[MONITOR] Upload failed (server offline?):', err.message);
-    }
+      const publicUrl = await uploadScreenshotToSupabase(filepath, filename);
+      console.log(`[MONITOR] Uploaded to Supabase: ${publicUrl}`);
 
-    // Notify renderer
-    if (mainWindow) mainWindow.webContents.send('screenshot-captured-notification', { filename, timestamp: new Date().toLocaleTimeString() });
+      sendBroadcast('screenshot-ready', {
+        agentId: IDENTITY.agentId,
+        filename,
+        url: publicUrl,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        label: 'Screen captured',
+        timestamp: Date.now()
+      });
+
+      if (mainWindow) mainWindow.webContents.send('screenshot-captured-notification', { filename, timestamp: new Date().toLocaleTimeString() });
+    } catch (err) {
+      console.warn('[MONITOR] Upload failed:', err.message);
+    }
   } catch (err) {
     console.error('[MONITOR] Capture failed:', err.message);
   }
 }
 
-// startTracking: used when admin initiates remote control takeover (fallback screenshots)
-// Normal operation = on-demand screenshots only (admin triggers)
 function startTracking(ms = 1500) {
   if (trackingInterval) clearInterval(trackingInterval);
   console.log(`[MONITOR] Remote-control tracking started (${ms / 1000}s interval)`);
@@ -371,7 +367,7 @@ function createWindow() {
   mainWindow.webContents.on('before-input-event', () => { lastActivityTime = Date.now(); });
 
   if (hasConsent()) {
-    connectWS(); // Only connect WS — no auto-screenshot interval
+    connectSupabase();
   }
 }
 
@@ -381,15 +377,21 @@ ipcMain.handle('get-consent-status', () => hasConsent());
 ipcMain.handle('accept-consent', () => {
   console.log('[MONITOR] Consent accepted');
   saveConsent(true);
-  connectWS(); // Screenshots on-demand only — no auto interval
-  setTimeout(() => wsSend({ type: 'agent-register', ...IDENTITY, screenResolution: getScreenResolution() }), 1000);
+  connectSupabase();
   return true;
 });
 
-ipcMain.handle('reset-consent', () => {
+ipcMain.handle('reset-consent', async () => {
   stopTracking();
   if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
-  if (ws) { ws.close(); ws = null; }
+  if (telemetryChannel) {
+    await telemetryChannel.unsubscribe();
+    telemetryChannel = null;
+  }
+  if (agentChannel) {
+    await agentChannel.unsubscribe();
+    agentChannel = null;
+  }
   if (fs.existsSync(consentFile)) fs.unlinkSync(consentFile);
   return true;
 });
@@ -398,9 +400,50 @@ ipcMain.handle('get-identity', () => IDENTITY);
 
 ipcMain.handle('send-ticket', async (_event, ticket) => {
   try {
-    const result = await httpPost('/api/tickets', { ...ticket, agentId: IDENTITY.agentId, agentName: IDENTITY.name });
-    wsSend({ type: 'ticket-created', ticket: result });
-    return result;
+    const ticketId = `KH-${Math.floor(1000 + Math.random() * 9000)}`;
+    const newTicket = {
+      id: ticketId,
+      agent_id: IDENTITY.agentId,
+      agent_name: IDENTITY.name,
+      title: ticket.title || 'Support Request',
+      description: ticket.description || '',
+      admin_status: 'pending',
+      admin_note: '',
+      created_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('tickets')
+      .insert(newTicket)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Broadcast ticket creation to listening admin dashboards
+    sendBroadcast('ticket-created', { ticket: {
+      id: data.id,
+      agentId: data.agent_id,
+      agentName: data.agent_name,
+      title: data.title,
+      description: data.description,
+      adminStatus: data.admin_status,
+      adminNote: data.admin_note,
+      createdAt: new Date(data.created_at).getTime(),
+      forwardedAt: new Date(data.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    }});
+
+    return {
+      id: data.id,
+      agentId: data.agent_id,
+      agentName: data.agent_name,
+      title: data.title,
+      description: data.description,
+      adminStatus: data.admin_status,
+      adminNote: data.admin_note,
+      createdAt: new Date(data.created_at).getTime(),
+      forwardedAt: new Date(data.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
   } catch (err) {
     console.error('[IPC] send-ticket failed:', err.message);
     return null;
@@ -408,8 +451,7 @@ ipcMain.handle('send-ticket', async (_event, ticket) => {
 });
 
 ipcMain.handle('send-agent-message', (_event, text) => {
-  wsSend({
-    type: 'agent-message',
+  sendBroadcast('agent-message', {
     agentId: IDENTITY.agentId,
     name: IDENTITY.name,
     text,
@@ -419,20 +461,17 @@ ipcMain.handle('send-agent-message', (_event, text) => {
 });
 
 ipcMain.handle('get-connection-status', () => {
-  return ws && ws.readyState === WebSocket.OPEN;
+  return telemetryChannel && telemetryChannel.state === 'joined';
 });
 
-// ── WebRTC signaling IPC bridge ───────────────────────────────────────
-// Renderer calls this to send WebRTC signals (answer / ICE) to the server
-// The server then relays them back to the admin.
 ipcMain.handle('webrtc-signal-out', (_event, payload) => {
-  wsSend({ ...payload, agentId: IDENTITY.agentId });
+  sendBroadcast(payload.type, { ...payload, agentId: IDENTITY.agentId });
   return true;
 });
 
 // ── App lifecycle ─────────────────────────────────────────────────────
 app.whenReady().then(() => {
-  connectWS();
+  connectSupabase();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

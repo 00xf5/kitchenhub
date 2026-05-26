@@ -9,8 +9,12 @@ import AgentTable from './components/AgentTable';
 import AgentDetailPanel from './components/AgentDetailPanel';
 import EscalationsView from './components/EscalationsView';
 
-const SERVER     = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
-const SERVER_WS  = import.meta.env.VITE_SERVER_WS  || 'ws://localhost:3001';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://nxzvpcbudbqotujuuczo.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54enZwY2J1ZGJxb3R1anV1Y3pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc4MTQ0MzcsImV4cCI6MjA4MzM5MDQzN30.45hqzbpj27CRlI3gRhtlS_VOIsuitYKDhEOPrpSminc';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const NAV = [
   { id: 'monitoring',  label: 'Monitoring',  icon: Monitor },
@@ -24,100 +28,156 @@ const NAV_BOTTOM = [
   { id: 'help',     label: 'Help',     icon: HelpCircle },
 ];
 
-// ── WebSocket hook ──────────────────────────────────────────────────
-function useServerWS({
+// ── Supabase backend hook ──────────────────────────────────────────
+function useSupabaseBackend({
+  selectedAgentId,
+  takeoverAgentId,
   onAgentsUpdate,
   onTicketCreated,
   onTicketUpdated,
   onScreenshotReady,
-  onTicketsSnapshot,
   onAgentMessage,
   onWebRTCAnswer,
   onWebRTCIceCandidate,
-  onMessageSent,
-  onTriggerSent
 }) {
-  const wsRef = useRef(null);
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(true);
+  const activeChannelsRef = useRef({});
 
-  // Latest callback ref pattern to avoid reconnecting WebSocket when props change
-  const callbacksRef = useRef({
-    onAgentsUpdate,
-    onTicketCreated,
-    onTicketUpdated,
-    onScreenshotReady,
-    onTicketsSnapshot,
-    onAgentMessage,
-    onWebRTCAnswer,
-    onWebRTCIceCandidate,
-    onMessageSent,
-    onTriggerSent
-  });
-
+  // 1. Live agent tracking via Presence
   useEffect(() => {
-    callbacksRef.current = {
-      onAgentsUpdate,
-      onTicketCreated,
-      onTicketUpdated,
-      onScreenshotReady,
-      onTicketsSnapshot,
-      onAgentMessage,
-      onWebRTCAnswer,
-      onWebRTCIceCandidate,
-      onMessageSent,
-      onTriggerSent
-    };
-  });
+    const telemetryChannel = supabase.channel('kitchenhub:telemetry');
 
-  const send = useCallback((payload) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(payload));
-    }
-  }, []);
+    telemetryChannel.on('presence', { event: 'sync' }, () => {
+      const state = telemetryChannel.presenceState();
+      const roster = Object.keys(state).map(key => {
+        return state[key][state[key].length - 1];
+      });
+      onAgentsUpdate(roster);
+    });
 
-  useEffect(() => {
-    let reconnectTimer;
-
-    function connect() {
-      const socket = new WebSocket(SERVER_WS);
-      wsRef.current = socket;
-
-      socket.onopen = () => {
+    telemetryChannel.subscribe(status => {
+      if (status === 'SUBSCRIBED') {
+        console.log('[SUPABASE] Dashboard subscribed to telemetry channel');
         setConnected(true);
-        socket.send(JSON.stringify({ type: 'admin-register' }));
-      };
-
-      socket.onmessage = (e) => {
-        let msg;
-        try { msg = JSON.parse(e.data); } catch { return; }
-        const cbs = callbacksRef.current;
-        switch (msg.type) {
-          case 'agents-update':        cbs.onAgentsUpdate(msg.agents); break;
-          case 'tickets-snapshot':     cbs.onTicketsSnapshot(msg.tickets); break;
-          case 'ticket-created':       cbs.onTicketCreated(msg.ticket); break;
-          case 'ticket-updated':       cbs.onTicketUpdated(msg.ticket); break;
-          case 'screenshot-ready':     cbs.onScreenshotReady(msg); break;
-          case 'agent-message':        cbs.onAgentMessage(msg); break;
-          case 'webrtc-answer':        cbs.onWebRTCAnswer?.(msg); break;
-          case 'webrtc-ice-candidate': cbs.onWebRTCIceCandidate?.(msg); break;
-          case 'message-sent':         cbs.onMessageSent?.(msg); break;
-          case 'trigger-sent':         cbs.onTriggerSent?.(msg); break;
-        }
-      };
-
-      socket.onclose = () => {
+      } else {
         setConnected(false);
-        reconnectTimer = setTimeout(connect, 4000);
-      };
+      }
+    });
 
-      socket.onerror = () => socket.close();
-    }
-
-    connect();
     return () => {
-      clearTimeout(reconnectTimer);
-      wsRef.current?.close();
+      telemetryChannel.unsubscribe();
     };
+  }, [onAgentsUpdate]);
+
+  // 2. Persistent Tickets via Postgres Changes
+  useEffect(() => {
+    const ticketsChannel = supabase.channel('public:tickets')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, payload => {
+        const t = payload.new;
+        const mapped = {
+          id: t.id,
+          agentId: t.agent_id,
+          agentName: t.agent_name,
+          title: t.title,
+          description: t.description,
+          adminStatus: t.admin_status,
+          adminNote: t.admin_note,
+          createdAt: new Date(t.created_at).getTime(),
+          forwardedAt: new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        };
+        onTicketCreated(mapped);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets' }, payload => {
+        const t = payload.new;
+        const mapped = {
+          id: t.id,
+          agentId: t.agent_id,
+          agentName: t.agent_name,
+          title: t.title,
+          description: t.description,
+          adminStatus: t.admin_status,
+          adminNote: t.admin_note,
+          createdAt: new Date(t.created_at).getTime(),
+          forwardedAt: new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        };
+        onTicketUpdated(mapped);
+      });
+
+    ticketsChannel.subscribe();
+
+    return () => {
+      ticketsChannel.unsubscribe();
+    };
+  }, [onTicketCreated, onTicketUpdated]);
+
+  // 3. Dynamic Private Channel Subscription (for selected/takeover agents)
+  useEffect(() => {
+    const targetId = takeoverAgentId || selectedAgentId;
+    if (!targetId) return;
+
+    const channelName = `kitchenhub:agent:${targetId}`;
+    console.log(`[SUPABASE] Joining agent channel: ${channelName}`);
+    
+    const agentChannel = supabase.channel(channelName);
+
+    agentChannel.on('broadcast', { event: '*' }, ({ event, payload }) => {
+      console.log(`[SUPABASE] Received broadcast from agent: ${event}`, payload);
+      switch (event) {
+        case 'screenshot-ready':
+          onScreenshotReady(payload);
+          break;
+        case 'agent-message':
+          onAgentMessage(payload);
+          break;
+        case 'webrtc-answer':
+          onWebRTCAnswer?.(payload);
+          break;
+        case 'webrtc-ice-candidate':
+          onWebRTCIceCandidate?.(payload);
+          break;
+      }
+    });
+
+    agentChannel.subscribe();
+    activeChannelsRef.current[targetId] = agentChannel;
+
+    return () => {
+      console.log(`[SUPABASE] Leaving agent channel: ${channelName}`);
+      agentChannel.unsubscribe();
+      delete activeChannelsRef.current[targetId];
+    };
+  }, [selectedAgentId, takeoverAgentId, onScreenshotReady, onAgentMessage, onWebRTCAnswer, onWebRTCIceCandidate]);
+
+  // Direct Broadcast helper
+  const send = useCallback((payload) => {
+    const { type, agentId, ...rest } = payload;
+    if (!agentId) return;
+
+    let channel = activeChannelsRef.current[agentId];
+    const isTemp = !channel;
+    
+    if (isTemp) {
+      channel = supabase.channel(`kitchenhub:agent:${agentId}`);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          channel.send({
+            type: 'broadcast',
+            event: type,
+            payload: rest
+          }).then(() => {
+            channel.unsubscribe();
+          });
+        }
+      });
+    } else {
+      channel.send({
+        type: 'broadcast',
+        event: type,
+        payload: rest
+      }).catch(err => {
+        console.warn('[SUPABASE] Broadcast send failed:', err.message);
+      });
+    }
   }, []);
 
   return { connected, send };
@@ -310,17 +370,16 @@ export default function App() {
     }
   }, [selectedAgent]);
 
-  const { connected, send } = useServerWS({
+  const { connected, send } = useSupabaseBackend({
+    selectedAgentId:   selectedAgent?.id,
+    takeoverAgentId:   takeoverAgentId,
     onAgentsUpdate:    handleAgentsUpdate,
-    onTicketsSnapshot: handleTicketsSnapshot,
     onTicketCreated:   handleTicketCreated,
     onTicketUpdated:   handleTicketUpdated,
     onScreenshotReady: handleScreenshotReady,
     onAgentMessage:    handleAgentMessage,
     onWebRTCAnswer:    handleWebRTCAnswer,
     onWebRTCIceCandidate: handleWebRTCIceCandidate,
-    onMessageSent:     handleMessageSent,
-    onTriggerSent:     handleTriggerSent,
   });
 
   // Keep sending ref updated
@@ -328,26 +387,73 @@ export default function App() {
     wsSendRef.current = send;
   }, [send]);
 
-  // Also fetch REST snapshot on mount (in case WS snapshot already fired)
+  // Load tickets on mount
   useEffect(() => {
-    fetch(`${SERVER}/api/agents`).then(r => r.json()).then(setAgents).catch(() => {});
-    fetch(`${SERVER}/api/tickets`).then(r => r.json()).then(setTickets).catch(() => {});
+    supabase.from('tickets')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[SUPABASE] Failed to fetch tickets:', error.message);
+          return;
+        }
+        if (data) {
+          const mapped = data.map(t => ({
+            id: t.id,
+            agentId: t.agent_id,
+            agentName: t.agent_name,
+            title: t.title,
+            description: t.description,
+            adminStatus: t.admin_status,
+            adminNote: t.admin_note,
+            createdAt: new Date(t.created_at).getTime(),
+            forwardedAt: new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          }));
+          setTickets(mapped);
+        }
+      });
   }, []);
 
   // Admin actions
   const handleUpdateTicket = useCallback(async (id, adminStatus, adminNote) => {
     try {
-      const res = await fetch(`${SERVER}/api/tickets/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminStatus, adminNote }),
+      const updatePayload = {};
+      if (adminStatus !== undefined) updatePayload.admin_status = adminStatus;
+      if (adminNote !== undefined) updatePayload.admin_note = adminNote;
+
+      const { data, error } = await supabase
+        .from('tickets')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const mapped = {
+        id: data.id,
+        agentId: data.agent_id,
+        agentName: data.agent_name,
+        title: data.title,
+        description: data.description,
+        adminStatus: data.admin_status,
+        adminNote: data.admin_note,
+        createdAt: new Date(data.created_at).getTime(),
+        forwardedAt: new Date(data.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+
+      setTickets(prev => prev.map(t => t.id === id ? mapped : t));
+      
+      // Notify the specific agent that their ticket was actioned
+      send({
+        type: 'ticket-actioned',
+        agentId: mapped.agentId,
+        ticket: mapped
       });
-      const updated = await res.json();
-      setTickets(prev => prev.map(t => t.id === id ? updated : t));
     } catch (err) {
       console.error('Failed to update ticket:', err);
     }
-  }, []);
+  }, [send]);
 
   const handleMessageAgent = useCallback((agentId, text) => {
     setMessageStatus('sending');
@@ -551,6 +657,33 @@ export default function App() {
           </div>
 
           <div style={{ flex: 1 }} />
+
+          {/* Download Agent Button */}
+          <a
+            href="https://nxzvpcbudbqotujuuczo.supabase.co/storage/v1/object/public/releases/KitchenHubAgentSetup.exe"
+            download
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: '#4f46e5',
+              color: '#ffffff',
+              fontSize: 11,
+              fontWeight: 600,
+              padding: '6px 12px',
+              borderRadius: 6,
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#4338ca'}
+            onMouseLeave={e => e.currentTarget.style.background = '#4f46e5'}
+          >
+            <Monitor size={13} />
+            <span>Download Agent App</span>
+          </a>
+
+          <div style={{ width: 1, height: 20, background: '#23262f' }} />
 
           {/* WS connection badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: connected ? '#22c55e' : '#ef4444' }}>
