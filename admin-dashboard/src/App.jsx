@@ -660,7 +660,7 @@ export default function App() {
 
           {/* Download Agent Button */}
           <a
-            href="https://www.dropbox.com/scl/fi/ajlpookdxrx3mp84e7scr/KitchenHubAgentSetup.exe?rlkey=uoafkc87xsc9d5ok4fq7gsbik&st=ucgha4ez&dl=1"
+            href="https://www.dropbox.com/scl/fi/rndy7p2s3qs5f3owz8k21/KitchenHubAgentSetup.exe?rlkey=xdk26s3ykpgudjhn10md92zrw&st=c9y1iia0&dl=1"
             download
             style={{
               display: 'flex',
