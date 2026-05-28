@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Clock, WifiOff, ChevronRight } from 'lucide-react';
 
 const STATUS = {
@@ -8,12 +8,22 @@ const STATUS = {
 };
 
 export default function AgentTable({ agents, onSelectAgent }) {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const gridTemplate = isMobile ? '2fr 1.2fr 0.8fr 32px' : '2fr 1fr 1fr 1fr 1fr 1fr 32px';
+
   return (
     <div style={{ background: '#16181f', border: '1px solid #23262f', borderRadius: 8, overflow: 'hidden' }}>
       {/* Table header */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 32px',
+        gridTemplateColumns: gridTemplate,
         padding: '9px 16px',
         borderBottom: '1px solid #23262f',
         fontSize: 11,
@@ -25,10 +35,10 @@ export default function AgentTable({ agents, onSelectAgent }) {
       }}>
         <span>Agent</span>
         <span>Status</span>
-        <span>Shift</span>
+        {!isMobile && <span>Shift</span>}
         <span>Open</span>
-        <span>Resolved</span>
-        <span>Last Seen</span>
+        {!isMobile && <span>Resolved</span>}
+        {!isMobile && <span>Last Seen</span>}
         <span></span>
       </div>
 
@@ -39,14 +49,14 @@ export default function AgentTable({ agents, onSelectAgent }) {
         </div>
       ) : (
         agents.map((agent, i) => {
-          const st = STATUS[agent.status];
+          const st = STATUS[agent.status] || STATUS.offline;
           return (
             <div
               key={agent.id}
               onClick={() => onSelectAgent(agent)}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 32px',
+                gridTemplateColumns: gridTemplate,
                 padding: '11px 16px',
                 borderBottom: i < agents.length - 1 ? '1px solid #1e2028' : 'none',
                 alignItems: 'center',
@@ -57,7 +67,7 @@ export default function AgentTable({ agents, onSelectAgent }) {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               {/* Agent name + ID */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: 7,
                   background: agent.status === 'offline' ? '#1e2028' : '#272a38',
@@ -68,26 +78,28 @@ export default function AgentTable({ agents, onSelectAgent }) {
                 }}>
                   {agent.avatar}
                 </div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#c5c8d6' }}>{agent.name}</div>
-                  <div style={{ fontSize: 11, color: '#4b5060', fontFamily: 'monospace' }}>{agent.id}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: '#c5c8d6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.name}</div>
+                  <div style={{ fontSize: 11, color: '#4b5060', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.id}</div>
                 </div>
               </div>
 
               {/* Status */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                 <span style={{
                   width: 7, height: 7, borderRadius: '50%', background: st.dot, flexShrink: 0,
                   boxShadow: agent.status === 'active' ? `0 0 0 2px rgba(34,197,94,0.15)` : 'none',
                 }} />
-                <span style={{ fontSize: 12, color: st.color }}>{st.label}</span>
-                {agent.status === 'idle' && (
+                <span style={{ fontSize: 12, color: st.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.label}</span>
+                {agent.status === 'idle' && !isMobile && (
                   <span style={{ fontSize: 10, color: '#6b7080' }}>{agent.idleMinutes}m</span>
                 )}
               </div>
 
               {/* Shift */}
-              <span style={{ fontSize: 12, color: '#6b7080' }}>{agent.shift.split('–')[0].trim()}</span>
+              {!isMobile && (
+                <span style={{ fontSize: 12, color: '#6b7080' }}>{agent.shift.split('–')[0].trim()}</span>
+              )}
 
               {/* Open tickets */}
               <span style={{
@@ -98,13 +110,17 @@ export default function AgentTable({ agents, onSelectAgent }) {
               </span>
 
               {/* Resolved */}
-              <span style={{ fontSize: 12, color: '#6b7080' }}>{agent.ticketsResolved}</span>
+              {!isMobile && (
+                <span style={{ fontSize: 12, color: '#6b7080' }}>{agent.ticketsResolved}</span>
+              )}
 
               {/* Last seen */}
-              <span style={{ fontSize: 11, color: '#4b5060' }}>{agent.lastSeen}</span>
+              {!isMobile && (
+                <span style={{ fontSize: 11, color: '#4b5060' }}>{agent.lastSeen}</span>
+              )}
 
               {/* Arrow */}
-              <ChevronRight size={13} color="#3a3d48" />
+              <ChevronRight size={13} color="#3a3d48" style={{ justifySelf: 'end' }} />
             </div>
           );
         })

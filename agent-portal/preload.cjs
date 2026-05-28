@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConsentStatus: ()       => ipcRenderer.invoke('get-consent-status'),
   acceptConsent:    ()       => ipcRenderer.invoke('accept-consent'),
   resetConsent:     ()       => ipcRenderer.invoke('reset-consent'),
+  stopRemoteControl: ()      => ipcRenderer.invoke('stop-remote-control'),
 
   // Identity
   getIdentity: ()            => ipcRenderer.invoke('get-identity'),

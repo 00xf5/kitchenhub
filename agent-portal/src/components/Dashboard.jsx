@@ -481,9 +481,21 @@ export default function Dashboard({ onResetConsent }) {
 
       {/* Remote Takeover Control Warning Bar */}
       {remoteControl.active && isConnected && (
-        <div className="bg-indigo-700 text-white text-[11px] font-bold text-center py-1.5 px-4 flex items-center justify-center space-x-2 z-[9998] absolute top-0 left-0 right-0 shadow-lg border-b border-indigo-600">
-          <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping mr-1" />
-          <span>⚠️ REMOTE CONTROL SESSION ACTIVE — Being assisted by Admin {remoteControl.adminName || 'Arthur Dent'}</span>
+        <div className="bg-indigo-700 text-white text-[11px] font-bold text-center py-1.5 px-4 flex items-center justify-center space-x-3 z-[9998] absolute top-0 left-0 right-0 shadow-lg border-b border-indigo-600">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping mr-1" />
+            <span>⚠️ REMOTE CONTROL SESSION ACTIVE — Being assisted by Admin {remoteControl.adminName || 'Arthur Dent'}</span>
+          </div>
+          <button 
+            onClick={() => {
+              if (window.electronAPI && window.electronAPI.stopRemoteControl) {
+                window.electronAPI.stopRemoteControl();
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2.5 py-0.5 rounded transition-colors cursor-pointer"
+          >
+            Disconnect
+          </button>
         </div>
       )}
 

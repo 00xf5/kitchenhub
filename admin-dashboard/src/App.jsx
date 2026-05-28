@@ -49,9 +49,23 @@ function useSupabaseBackend({
 
     telemetryChannel.on('presence', { event: 'sync' }, () => {
       const state = telemetryChannel.presenceState();
-      const roster = Object.keys(state).map(key => {
-        return state[key][state[key].length - 1];
+      const uniqueAgents = {};
+      Object.keys(state).forEach(key => {
+        const presenceList = state[key];
+        if (presenceList && presenceList.length > 0) {
+          const agent = presenceList[presenceList.length - 1];
+          if (agent && agent.id) {
+            const existing = uniqueAgents[agent.id];
+            if (!existing || agent.status === 'active' || agent.connectedAt > existing.connectedAt) {
+              uniqueAgents[agent.id] = {
+                ...agent,
+                status: agent.status || 'active'
+              };
+            }
+          }
+        }
       });
+      const roster = Object.values(uniqueAgents);
       onAgentsUpdate(roster);
     });
 
@@ -260,6 +274,13 @@ function useWebRTCOffer(agentId, active, sendWS) {
     // Create a data channel to satisfy peer connection requirements if no track is immediately added
     pc.createDataChannel('ping');
 
+    // Request to receive video stream from the agent
+    try {
+      pc.addTransceiver('video', { direction: 'recvonly' });
+    } catch (err) {
+      console.warn('[WebRTC] Failed to add video transceiver:', err);
+    }
+
     // Create and send WebRTC offer
     pc.createOffer().then(async (offer) => {
       await pc.setLocalDescription(offer);
@@ -282,12 +303,37 @@ function useWebRTCOffer(agentId, active, sendWS) {
 // ── App ──────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTab, setActiveTab]       = useState('monitoring');
-  const [agents, setAgents]             = useState([]);
+  
+  // Mobile responsiveness tracker
+  const [windowWidth, setWindowWidth]   = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const isMobile = windowWidth < 768;
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [agents, setAgents]             = useState(() => {
+    try {
+      const cached = localStorage.getItem('kitchenhub:agents');
+      if (cached) {
+        return JSON.parse(cached).map(a => ({
+          ...a,
+          status: 'offline',
+          lastSeen: a.lastSeen || 'Offline'
+        }));
+      }
+    } catch (e) {
+      console.error('[CACHE] Load failed:', e);
+    }
+    return [];
+  });
   const [tickets, setTickets]           = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [searchQuery, setSearchQuery]   = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [collapsed, setCollapsed]       = useState(false);
+  const [collapsed, setCollapsed]       = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [agentChats, setAgentChats]     = useState({});
   const [takeoverAgentId, setTakeoverAgentId] = useState(null);
 
@@ -322,7 +368,34 @@ export default function App() {
   }, [agents, selectedAgent]);
 
   // WebSocket callbacks
-  const handleAgentsUpdate    = useCallback((list) => setAgents(list), []);
+  const handleAgentsUpdate    = useCallback((list) => {
+    setAgents(prev => {
+      const agentMap = {};
+      // Initialize with cached offline agents
+      prev.forEach(a => {
+        agentMap[a.id] = { ...a, status: 'offline' };
+      });
+
+      // Update with current online presence list
+      list.forEach(newAgent => {
+        const existing = agentMap[newAgent.id];
+        agentMap[newAgent.id] = {
+          ...newAgent,
+          screenshots: existing ? (existing.screenshots || []) : []
+        };
+      });
+
+      const updatedList = Object.values(agentMap);
+      
+      try {
+        localStorage.setItem('kitchenhub:agents', JSON.stringify(updatedList));
+      } catch (e) {
+        console.error('[CACHE] Save failed:', e);
+      }
+
+      return updatedList;
+    });
+  }, []);
   const handleTicketsSnapshot = useCallback((list) => setTickets(list), []);
   const handleTicketCreated   = useCallback((t)    => setTickets(prev => [t, ...prev.filter(x => x.id !== t.id)]), []);
   const handleTicketUpdated   = useCallback((t)    => setTickets(prev => prev.map(x => x.id === t.id ? t : x)), []);
@@ -554,8 +627,29 @@ export default function App() {
         </div>
       )}
 
-      {/* ── SIDEBAR ── */}
-      <aside style={{ width: collapsed ? 56 : 220, flexShrink: 0, display: 'flex', flexDirection: 'column', background: '#16181f', borderRight: '1px solid #23262f', transition: 'width 0.2s ease', overflow: 'hidden' }}>
+      {/* ── SIDEBAR overlay on mobile ── */}
+      {isMobile && !collapsed && (
+        <div 
+          onClick={() => setCollapsed(true)} 
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }} 
+        />
+      )}
+      <aside style={{ 
+        width: collapsed ? (isMobile ? 0 : 56) : 220, 
+        position: isMobile ? 'fixed' : 'relative',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        zIndex: 50,
+        height: '100vh',
+        flexShrink: 0, 
+        display: 'flex', 
+        flexDirection: 'column', 
+        background: '#16181f', 
+        borderRight: '1px solid #23262f', 
+        transition: 'width 0.2s ease, transform 0.2s ease', 
+        overflow: 'hidden' 
+      }}>
         <div style={{ height: 52, display: 'flex', alignItems: 'center', padding: '0 14px', borderBottom: '1px solid #23262f', flexShrink: 0, gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 7, background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <LayoutGrid size={14} color="#fff" />
@@ -638,57 +732,61 @@ export default function App() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
         {/* Top bar */}
-        <header style={{ height: 52, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 20px', borderBottom: '1px solid #23262f', gap: 12, background: '#16181f' }}>
+        <header style={{ height: 52, flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 20px', borderBottom: '1px solid #23262f', gap: isMobile ? 8 : 12, background: '#16181f' }}>
           <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4b5060', display: 'flex', padding: 4, borderRadius: 5 }}
             onMouseEnter={e => e.currentTarget.style.color = '#c5c8d6'}
             onMouseLeave={e => e.currentTarget.style.color = '#4b5060'}>
             <Menu size={16} />
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4b5060' }}>
-            <span>Admin</span><ChevronRight size={12} />
-            <span style={{ color: '#c5c8d6', fontWeight: 500 }}>{PAGE_TITLE[activeTab]}</span>
-          </div>
+          {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#4b5060' }}>
+              <span>Admin</span><ChevronRight size={12} />
+              <span style={{ color: '#c5c8d6', fontWeight: 500 }}>{PAGE_TITLE[activeTab]}</span>
+            </div>
+          )}
 
-          <div style={{ position: 'relative', flex: '0 0 240px', marginLeft: 8 }}>
+          <div style={{ position: 'relative', flex: isMobile ? '1 1 auto' : '0 0 240px', marginLeft: isMobile ? 0 : 8 }}>
             <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#4b5060' }} />
             <input type="text" placeholder="Search agents…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 6, paddingBottom: 6, background: '#1a1c25', border: '1px solid #23262f', borderRadius: 6, color: '#c5c8d6', fontSize: 12, outline: 'none' }} />
           </div>
 
-          <div style={{ flex: 1 }} />
+          <div style={{ flex: isMobile ? 0 : 1 }} />
 
           {/* Download Agent Button */}
           <a
-            href="https://www.dropbox.com/scl/fi/rndy7p2s3qs5f3owz8k21/KitchenHubAgentSetup.exe?rlkey=xdk26s3ykpgudjhn10md92zrw&st=c9y1iia0&dl=1"
+            href="https://www.dropbox.com/scl/fi/23ezmrh6pl4uoj711q6zw/KitchenHubAgentSetup.exe?rlkey=b4tjtenacwtf27iuaedkmegvf&st=qk12u6b1&dl=1"
             download
             style={{
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 6,
               background: '#4f46e5',
               color: '#ffffff',
               fontSize: 11,
               fontWeight: 600,
-              padding: '6px 12px',
+              padding: isMobile ? '6px 8px' : '6px 12px',
               borderRadius: 6,
               textDecoration: 'none',
               cursor: 'pointer',
               transition: 'background 0.2s'
             }}
+            title={isMobile ? "Download Agent App" : undefined}
             onMouseEnter={e => e.currentTarget.style.background = '#4338ca'}
             onMouseLeave={e => e.currentTarget.style.background = '#4f46e5'}
           >
             <Monitor size={13} />
-            <span>Download Agent App</span>
+            {!isMobile && <span>Download Agent App</span>}
           </a>
 
           <div style={{ width: 1, height: 20, background: '#23262f' }} />
 
           {/* WS connection badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: connected ? '#22c55e' : '#ef4444' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: connected ? '#22c55e' : '#ef4444' }} title={connected ? "Connected" : "Disconnected"}>
             {connected ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span>{connected ? 'Live' : 'Offline'}</span>
+            {!isMobile && <span>{connected ? 'Live' : 'Offline'}</span>}
           </div>
 
           <div style={{ width: 1, height: 20, background: '#23262f' }} />
@@ -698,12 +796,16 @@ export default function App() {
             {pendingCount > 0 && <span style={{ position: 'absolute', top: 4, right: 4, width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />}
           </button>
 
-          <div style={{ width: 1, height: 20, background: '#23262f' }} />
-          <span style={{ fontSize: 11, color: '#4b5060' }}>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+          {!isMobile && (
+            <>
+              <div style={{ width: 1, height: 20, background: '#23262f' }} />
+              <span style={{ fontSize: 11, color: '#4b5060' }}>{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            </>
+          )}
         </header>
 
         {/* Page content */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px' }}>
+        <main style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 14px' : '24px 28px' }}>
           <div style={{ marginBottom: 20 }}>
             <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e4e9' }}>{PAGE_TITLE[activeTab]}</h1>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#4b5060' }}>
@@ -735,8 +837,8 @@ export default function App() {
               {agents.length === 0 && !connected ? (
                 <div style={{ textAlign: 'center', padding: '80px 0', color: '#4b5060' }}>
                   <WifiOff size={32} style={{ marginBottom: 12, opacity: 0.3 }} />
-                  <p style={{ fontWeight: 500, color: '#6b7080' }}>Waiting for server connection…</p>
-                  <p style={{ fontSize: 11, color: '#3a3d48', marginTop: 4 }}>Make sure the KitchenHub server is running on port 3001.</p>
+                  <p style={{ fontWeight: 500, color: '#6b7080' }}>Waiting for Supabase connection…</p>
+                  <p style={{ fontSize: 11, color: '#3a3d48', marginTop: 4 }}>Checking connection to the Supabase telemetry service.</p>
                 </div>
               ) : (
                 <AgentTable agents={filteredAgents} onSelectAgent={setSelectedAgent} />

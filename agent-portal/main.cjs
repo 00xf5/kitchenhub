@@ -1,5 +1,5 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer, powerMonitor, screen } = require('electron');
-const { exec } = require('child_process');
+const { app, BrowserWindow, ipcMain, desktopCapturer, powerMonitor, screen, session } = require('electron');
+const { exec, execFile } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
 const http = require('http');
@@ -19,6 +19,9 @@ try {
 }
 
 const isDev          = !app.isPackaged;
+const controlExePath = isDev 
+  ? path.join(__dirname, 'bin', 'control.exe')
+  : path.join(process.resourcesPath, 'bin', 'control.exe');
 const userDataDir    = app.getPath('userData');
 const screenshotsDir = path.join(userDataDir, 'screenshots');
 const consentFile    = path.join(userDataDir, 'consent.json');
@@ -201,7 +204,6 @@ function handleBroadcastMessage(event, msg) {
       console.log('[SUPABASE] Admin started remote control takeover');
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.setFullScreen(true);
         mainWindow.focus();
       }
       startTracking(1500); // Fast screenshots as fallback during takeover
@@ -212,9 +214,6 @@ function handleBroadcastMessage(event, msg) {
 
     case 'remote-control-stop':
       console.log('[SUPABASE] Admin stopped remote control takeover');
-      if (mainWindow) {
-        mainWindow.setFullScreen(false);
-      }
       stopTracking();
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: false });
@@ -222,39 +221,51 @@ function handleBroadcastMessage(event, msg) {
       break;
 
     case 'remote-click':
-      if (robot) {
+      if (fs.existsSync(controlExePath)) {
+        console.log(`[CONTROL-GO] Clicking at (${msg.x}, ${msg.y})`);
+        execFile(controlExePath, ['click', msg.x.toString(), msg.y.toString()], (err) => {
+          if (err) console.error('[OS-INPUT] Go Click failed:', err.message);
+        });
+      } else if (robot) {
         console.log(`[ROBOT] Moving mouse to (${msg.x}, ${msg.y}) and clicking`);
         robot.moveMouse(msg.x, msg.y);
         robot.mouseClick();
-        if (mainWindow) {
-          const bounds = mainWindow.getBounds();
-          const winX = msg.x - bounds.x;
-          const winY = msg.y - bounds.y;
-          mainWindow.webContents.send('remote-click', { x: winX, y: winY });
-        }
       } else {
-        if (mainWindow) {
-          const bounds = mainWindow.getBounds();
-          const winX = msg.x - bounds.x;
-          const winY = msg.y - bounds.y;
-          mainWindow.webContents.sendInputEvent({ type: 'mouseMove', x: winX, y: winY });
-          mainWindow.webContents.sendInputEvent({ type: 'mouseDown', x: winX, y: winY, button: 'left', clickCount: 1 });
-          mainWindow.webContents.sendInputEvent({ type: 'mouseUp', x: winX, y: winY, button: 'left', clickCount: 1 });
-          mainWindow.webContents.send('remote-click', { x: winX, y: winY });
-        }
+        console.log(`[ROBOT-FALLBACK] Moving mouse to (${msg.x}, ${msg.y}) and clicking via OS fallback`);
+        // OS-level click via PowerShell
+        const psCommand = `powershell -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport(\\\"user32.dll\\\")] public static extern void mouse_event(int flags, int dx, int dy, int buttons, int extraInfo); [DllImport(\\\"user32.dll\\\")] public static extern bool SetCursorPos(int x, int y); }'; [Win32]::SetCursorPos(${msg.x}, ${msg.y}); [Win32]::mouse_event(0x0002, 0, 0, 0, 0); [Win32]::mouse_event(0x0004, 0, 0, 0, 0);"`;
+        exec(psCommand, (err) => {
+          if (err) console.error('[OS-INPUT] Click fallback failed:', err.message);
+        });
+      }
+
+      if (mainWindow) {
+        const bounds = mainWindow.getBounds();
+        const winX = msg.x - bounds.x;
+        const winY = msg.y - bounds.y;
+        mainWindow.webContents.send('remote-click', { x: winX, y: winY });
       }
       break;
 
     case 'remote-type':
-      if (robot) {
+      if (fs.existsSync(controlExePath)) {
+        console.log(`[CONTROL-GO] Typing: "${msg.text}"`);
+        execFile(controlExePath, ['type', msg.text], (err) => {
+          if (err) console.error('[OS-INPUT] Go Typing failed:', err.message);
+        });
+      } else if (robot) {
         console.log(`[ROBOT] Typing: "${msg.text}"`);
         robot.typeString(msg.text);
       } else {
-        if (mainWindow) {
-          for (const char of msg.text) {
-            mainWindow.webContents.sendInputEvent({ type: 'char', keyCode: char });
-          }
-        }
+        console.log(`[ROBOT-FALLBACK] Typing "${msg.text}" via OS fallback`);
+        // Escape special SendKeys characters: +, ^, %, ~, (, ), [, ], {, }
+        const escapedText = msg.text.replace(/[+^%~()\[\]{}]/g, '{$&}');
+        // Escape quotes/backslashes/backticks for PowerShell
+        const psEscaped = escapedText.replace(/["`$\\]/g, '`$&');
+        const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psEscaped.replace(/'/g, "''")}')"`;
+        exec(psCommand, (err) => {
+          if (err) console.error('[OS-INPUT] Typing fallback failed:', err.message);
+        });
       }
       break;
 
@@ -470,8 +481,29 @@ ipcMain.handle('webrtc-signal-out', (_event, payload) => {
   return true;
 });
 
+ipcMain.handle('stop-remote-control', () => {
+  console.log('[AGENT] Local request to stop remote takeover');
+  sendBroadcast('remote-control-stop', { agentId: IDENTITY.agentId });
+  handleBroadcastMessage('remote-control-stop', {});
+  return true;
+});
+
 // ── App lifecycle ─────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  if (session && session.defaultSession) {
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+        if (sources.length > 0) {
+          callback({ video: sources[0] });
+        } else {
+          callback({ error: 'No screen sources available' });
+        }
+      }).catch(err => {
+        console.error('[WebRTC] Error getting sources:', err.message);
+        callback({ error: err.message });
+      });
+    });
+  }
   connectSupabase();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
