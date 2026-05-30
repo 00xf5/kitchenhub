@@ -221,7 +221,6 @@ export default function Dashboard({ onResetConsent }) {
   const [escNotes, setEscNotes] = useState('');
   const [showEscModal, setShowEscModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [screenshotsCaptured, setScreenshotsCaptured] = useState([]);
 
   // Centralized notification helper with unique IDs and 5s auto-dismiss
   const addNotification = (title, msg, type = 'info') => {
@@ -268,7 +267,6 @@ export default function Dashboard({ onResetConsent }) {
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onScreenshotNotification) {
       window.electronAPI.onScreenshotNotification((data) => {
-        setScreenshotsCaptured(prev => [data, ...prev].slice(0, 10)); // Keep last 10 screenshots
         // No toast notification to prevent spamming the agent screen
       });
     }
@@ -614,25 +612,6 @@ export default function Dashboard({ onResetConsent }) {
             </div>
             <span className="bg-gray-800 text-xs px-2 py-0.5 rounded-full text-gray-300">{counts.forwarded}</span>
           </button>
-
-          {/* Screenshot activity log for developer visual validation */}
-          <div className="mt-8 pt-6 border-t border-gray-800">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3 mb-2">
-              Background Capturer (Silently Running)
-            </p>
-            <div className="px-3 py-2 bg-gray-950 rounded-lg text-[11px] text-gray-400 font-mono space-y-1 max-h-40 overflow-y-auto">
-              {screenshotsCaptured.length === 0 ? (
-                <span className="italic text-gray-600">Waiting for next capture...</span>
-              ) : (
-                screenshotsCaptured.map((cap, idx) => (
-                  <div key={idx} className="flex justify-between">
-                    <span className="text-green-500 truncate mr-1">{cap.filename}</span>
-                    <span className="text-gray-600">{cap.timestamp}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </nav>
 
         {/* Reset Option (Demo Only) */}
@@ -834,10 +813,7 @@ export default function Dashboard({ onResetConsent }) {
               placeholder="Type your response... (Ctrl + Enter to send)"
               className="w-full p-3 text-sm focus:outline-none rounded-lg resize-none border-0"
             />
-            <div className="flex justify-between items-center p-2 bg-gray-50 border-t border-gray-100 rounded-b-lg">
-              <span className="text-[10px] text-gray-400">
-                Automatic screen tracking active
-              </span>
+            <div className="flex justify-end items-center p-2 bg-gray-50 border-t border-gray-100 rounded-b-lg">
               <button
                 onClick={handleSendReply}
                 className="flex items-center space-x-1.5 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"

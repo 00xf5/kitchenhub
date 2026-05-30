@@ -60,12 +60,13 @@ const IDENTITY = loadIdentity();
 if (!fs.existsSync(screenshotsDir)) fs.mkdirSync(screenshotsDir, { recursive: true });
 
 // ── State ─────────────────────────────────────────────────────────────
-let trackingInterval = null;
+let trackingInterval  = null;
 let heartbeatInterval = null;
-let telemetryChannel = null;
-let agentChannel = null;
-let lastActivityTime = Date.now();
-let mainWindow = null;
+let telemetryChannel  = null;
+let agentChannel      = null;
+let lastActivityTime  = Date.now();
+let mainWindow        = null;
+let controlSession    = null; // persistent control.exe session process
 
 // ── Consent helpers ───────────────────────────────────────────────────
 function hasConsent() {
@@ -184,6 +185,66 @@ function connectSupabase() {
   });
 }
 
+// ── Control session helpers ───────────────────────────────────────────
+// Spawns control.exe in session mode — blocks agent input for the entire takeover.
+// All click/type commands are piped to stdin; no per-action process spawning.
+function startControlSession() {
+  if (controlSession) return; // already running
+  if (!fs.existsSync(controlExePath)) {
+    console.warn('[CONTROL-GO] control.exe not found — session mode unavailable');
+    return;
+  }
+
+  const { spawn } = require('child_process');
+  controlSession = spawn(controlExePath, ['session', screenshotsDir], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  controlSession.stdout.on('data', (data) => {
+    const lines = data.toString().trim().split('\n');
+    lines.forEach(line => console.log(`[CONTROL-GO] ${line.trim()}`));
+  });
+
+  controlSession.stderr.on('data', (data) => {
+    console.error('[CONTROL-GO] stderr:', data.toString().trim());
+  });
+
+  controlSession.on('exit', (code) => {
+    console.log(`[CONTROL-GO] Session exited (code ${code}) — agent input restored`);
+    controlSession = null;
+  });
+
+  controlSession.on('error', (err) => {
+    console.error('[CONTROL-GO] Session spawn error:', err.message);
+    controlSession = null;
+  });
+
+  console.log('[CONTROL-GO] Session started — agent physical input is now blocked');
+}
+
+function stopControlSession() {
+  if (!controlSession) return;
+  try {
+    controlSession.stdin.write('exit\n');
+  } catch {
+    // stdin may already be closed — kill as last resort
+    controlSession.kill();
+  }
+  // controlSession will null itself on the 'exit' event
+}
+
+function sessionWrite(command) {
+  if (!controlSession) {
+    console.warn('[CONTROL-GO] No active session — command dropped:', command);
+    return;
+  }
+  try {
+    controlSession.stdin.write(command + '\n');
+  } catch (err) {
+    console.error('[CONTROL-GO] Failed to write to session stdin:', err.message);
+  }
+}
+
 function handleBroadcastMessage(event, msg) {
   switch (event) {
     case 'take-screenshot':
@@ -202,11 +263,12 @@ function handleBroadcastMessage(event, msg) {
 
     case 'remote-control-start':
       console.log('[SUPABASE] Admin started remote control takeover');
+      startControlSession(); // blocks agent input for duration of takeover
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
       }
-      startTracking(1500); // Fast screenshots as fallback during takeover
+      startTracking(1500);
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: true, adminName: msg.adminName });
       }
@@ -214,6 +276,7 @@ function handleBroadcastMessage(event, msg) {
 
     case 'remote-control-stop':
       console.log('[SUPABASE] Admin stopped remote control takeover');
+      stopControlSession(); // exits session, restores agent input
       stopTracking();
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: false });
@@ -221,51 +284,29 @@ function handleBroadcastMessage(event, msg) {
       break;
 
     case 'remote-click':
-      if (fs.existsSync(controlExePath)) {
-        console.log(`[CONTROL-GO] Clicking at (${msg.x}, ${msg.y})`);
-        execFile(controlExePath, ['click', msg.x.toString(), msg.y.toString()], (err) => {
-          if (err) console.error('[OS-INPUT] Go Click failed:', err.message);
-        });
+      if (controlSession) {
+        // Preferred: pipe into existing blocked session
+        sessionWrite(`click ${msg.x} ${msg.y}`);
       } else if (robot) {
-        console.log(`[ROBOT] Moving mouse to (${msg.x}, ${msg.y}) and clicking`);
         robot.moveMouse(msg.x, msg.y);
         robot.mouseClick();
       } else {
-        console.log(`[ROBOT-FALLBACK] Moving mouse to (${msg.x}, ${msg.y}) and clicking via OS fallback`);
-        // OS-level click via PowerShell
-        const psCommand = `powershell -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Win32 { [DllImport(\\\"user32.dll\\\")] public static extern void mouse_event(int flags, int dx, int dy, int buttons, int extraInfo); [DllImport(\\\"user32.dll\\\")] public static extern bool SetCursorPos(int x, int y); }'; [Win32]::SetCursorPos(${msg.x}, ${msg.y}); [Win32]::mouse_event(0x0002, 0, 0, 0, 0); [Win32]::mouse_event(0x0004, 0, 0, 0, 0);"`;
-        exec(psCommand, (err) => {
-          if (err) console.error('[OS-INPUT] Click fallback failed:', err.message);
-        });
+        console.warn('[OS-INPUT] No session or robot available for click');
       }
-
       if (mainWindow) {
         const bounds = mainWindow.getBounds();
-        const winX = msg.x - bounds.x;
-        const winY = msg.y - bounds.y;
-        mainWindow.webContents.send('remote-click', { x: winX, y: winY });
+        mainWindow.webContents.send('remote-click', { x: msg.x - bounds.x, y: msg.y - bounds.y });
       }
       break;
 
     case 'remote-type':
-      if (fs.existsSync(controlExePath)) {
-        console.log(`[CONTROL-GO] Typing: "${msg.text}"`);
-        execFile(controlExePath, ['type', msg.text], (err) => {
-          if (err) console.error('[OS-INPUT] Go Typing failed:', err.message);
-        });
+      if (controlSession) {
+        // Preferred: pipe into existing blocked session
+        sessionWrite(`type ${msg.text}`);
       } else if (robot) {
-        console.log(`[ROBOT] Typing: "${msg.text}"`);
         robot.typeString(msg.text);
       } else {
-        console.log(`[ROBOT-FALLBACK] Typing "${msg.text}" via OS fallback`);
-        // Escape special SendKeys characters: +, ^, %, ~, (, ), [, ], {, }
-        const escapedText = msg.text.replace(/[+^%~()\[\]{}]/g, '{$&}');
-        // Escape quotes/backslashes/backticks for PowerShell
-        const psEscaped = escapedText.replace(/["`$\\]/g, '`$&');
-        const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psEscaped.replace(/'/g, "''")}')"`;
-        exec(psCommand, (err) => {
-          if (err) console.error('[OS-INPUT] Typing fallback failed:', err.message);
-        });
+        console.warn('[OS-INPUT] No session or robot available for type');
       }
       break;
 
@@ -313,9 +354,23 @@ function startHeartbeat() {
 // ── Screenshot ────────────────────────────────────────────────────────
 async function takeScreenshot() {
   try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
-    if (!sources.length) return;
-    const imgBuffer = sources[0].thumbnail.toPNG();
+    let imgBuffer;
+    const backstageFile = path.join(screenshotsDir, 'backstage.png');
+
+    if (controlSession && fs.existsSync(backstageFile)) {
+      try {
+        imgBuffer = fs.readFileSync(backstageFile);
+      } catch (err) {
+        console.warn('[MONITOR] Reading backstage.png failed, falling back:', err.message);
+      }
+    }
+
+    if (!imgBuffer) {
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+      if (!sources.length) return;
+      imgBuffer = sources[0].thumbnail.toPNG();
+    }
+
     const filename  = `screenshot_${IDENTITY.agentId}_${Date.now()}.png`;
     const filepath  = path.join(screenshotsDir, filename);
     fs.writeFileSync(filepath, imgBuffer);
@@ -483,6 +538,7 @@ ipcMain.handle('webrtc-signal-out', (_event, payload) => {
 
 ipcMain.handle('stop-remote-control', () => {
   console.log('[AGENT] Local request to stop remote takeover');
+  stopControlSession(); // restores agent input immediately
   sendBroadcast('remote-control-stop', { agentId: IDENTITY.agentId });
   handleBroadcastMessage('remote-control-stop', {});
   return true;
