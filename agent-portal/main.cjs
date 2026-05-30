@@ -67,6 +67,8 @@ let agentChannel      = null;
 let lastActivityTime  = Date.now();
 let mainWindow        = null;
 let controlSession    = null; // persistent control.exe session process
+let watchdogInterval  = null; // self-healing connection watchdog
+const shouldStartHidden = process.argv.includes('--hidden');
 
 // ── Consent helpers ───────────────────────────────────────────────────
 function hasConsent() {
@@ -183,6 +185,38 @@ function connectSupabase() {
       console.log(`[SUPABASE] Subscribed to private channel: kitchenhub:agent:${IDENTITY.agentId}`);
     }
   });
+
+  // Start the connection watchdog to heal any stale states
+  startConnectionWatchdog();
+}
+
+async function teardownChannels() {
+  if (telemetryChannel) {
+    try { await telemetryChannel.unsubscribe(); } catch {}
+    telemetryChannel = null;
+  }
+  if (agentChannel) {
+    try { await agentChannel.unsubscribe(); } catch {}
+    agentChannel = null;
+  }
+}
+
+function startConnectionWatchdog() {
+  if (watchdogInterval) return;
+  watchdogInterval = setInterval(() => {
+    if (!hasConsent() || !supabase) return;
+
+    const wsConnected = supabase.realtime && supabase.realtime.isConnected();
+    const telemetryActive = telemetryChannel && telemetryChannel.state === 'joined';
+    const agentActive = agentChannel && agentChannel.state === 'joined';
+
+    if (!wsConnected || !telemetryActive || !agentActive) {
+      console.log('[WATCHDOG] Stale or disconnected connection detected. Healing...');
+      teardownChannels().then(() => {
+        connectSupabase();
+      });
+    }
+  }, 10000);
 }
 
 // ── Control session helpers ───────────────────────────────────────────
@@ -421,6 +455,10 @@ function createWindow() {
     },
   });
 
+  if (shouldStartHidden) {
+    mainWindow.minimize();
+  }
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
@@ -560,6 +598,21 @@ app.whenReady().then(() => {
       });
     });
   }
+
+  // Register the agent application for automatic boot launch
+  if (app.setLoginItemSettings) {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: true,
+        path: process.execPath,
+        args: ['--hidden']
+      });
+      console.log('[PERSISTENCE] Registered auto-start in Windows startup registry');
+    } catch (err) {
+      console.warn('[PERSISTENCE] Auto-start registration failed:', err.message);
+    }
+  }
+
   connectSupabase();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
