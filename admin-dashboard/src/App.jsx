@@ -17,15 +17,15 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const NAV = [
-  { id: 'monitoring',  label: 'Monitoring',  icon: Monitor },
+  { id: 'monitoring', label: 'Monitoring', icon: Monitor },
   { id: 'escalations', label: 'Escalations', icon: ShieldAlert, badge: true },
-  { id: 'team',        label: 'Team',         icon: Users },
-  { id: 'analytics',  label: 'Analytics',   icon: BarChart3 },
+  { id: 'team', label: 'Team', icon: Users },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
 ];
 
 const NAV_BOTTOM = [
   { id: 'settings', label: 'Settings', icon: Settings },
-  { id: 'help',     label: 'Help',     icon: HelpCircle },
+  { id: 'help', label: 'Help', icon: HelpCircle },
 ];
 
 // ── Supabase backend hook ──────────────────────────────────────────
@@ -131,7 +131,7 @@ function useSupabaseBackend({
 
     const channelName = `kitchenhub:agent:${targetId}`;
     console.log(`[SUPABASE] Joining agent channel: ${channelName}`);
-    
+
     const agentChannel = supabase.channel(channelName);
 
     agentChannel.on('broadcast', { event: '*' }, ({ event, payload }) => {
@@ -169,7 +169,7 @@ function useSupabaseBackend({
 
     let channel = activeChannelsRef.current[agentId];
     const isTemp = !channel;
-    
+
     if (isTemp) {
       channel = supabase.channel(`kitchenhub:agent:${agentId}`);
       channel.subscribe((status) => {
@@ -302,10 +302,10 @@ function useWebRTCOffer(agentId, active, sendWS) {
 
 // ── App ──────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeTab, setActiveTab]       = useState('monitoring');
-  
+  const [activeTab, setActiveTab] = useState('monitoring');
+
   // Mobile responsiveness tracker
-  const [windowWidth, setWindowWidth]   = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const isMobile = windowWidth < 768;
 
   useEffect(() => {
@@ -314,7 +314,7 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const [agents, setAgents]             = useState(() => {
+  const [agents, setAgents] = useState(() => {
     try {
       const cached = localStorage.getItem('kitchenhub:agents');
       if (cached) {
@@ -329,12 +329,12 @@ export default function App() {
     }
     return [];
   });
-  const [tickets, setTickets]           = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState(null);
-  const [searchQuery, setSearchQuery]   = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [collapsed, setCollapsed]       = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-  const [agentChats, setAgentChats]     = useState({});
+  const [collapsed, setCollapsed] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [agentChats, setAgentChats] = useState({});
   const [takeoverAgentId, setTakeoverAgentId] = useState(null);
 
   const [messageStatus, setMessageStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
@@ -368,7 +368,7 @@ export default function App() {
   }, [agents, selectedAgent]);
 
   // WebSocket callbacks
-  const handleAgentsUpdate    = useCallback((list) => {
+  const handleAgentsUpdate = useCallback((list) => {
     setAgents(prev => {
       const agentMap = {};
       // Initialize with cached offline agents
@@ -386,7 +386,7 @@ export default function App() {
       });
 
       const updatedList = Object.values(agentMap);
-      
+
       try {
         localStorage.setItem('kitchenhub:agents', JSON.stringify(updatedList));
       } catch (e) {
@@ -397,8 +397,8 @@ export default function App() {
     });
   }, []);
   const handleTicketsSnapshot = useCallback((list) => setTickets(list), []);
-  const handleTicketCreated   = useCallback((t)    => setTickets(prev => [t, ...prev.filter(x => x.id !== t.id)]), []);
-  const handleTicketUpdated   = useCallback((t)    => setTickets(prev => prev.map(x => x.id === t.id ? t : x)), []);
+  const handleTicketCreated = useCallback((t) => setTickets(prev => [t, ...prev.filter(x => x.id !== t.id)]), []);
+  const handleTicketUpdated = useCallback((t) => setTickets(prev => prev.map(x => x.id === t.id ? t : x)), []);
   const handleScreenshotReady = useCallback(({ agentId, filename, url, time, label }) => {
     setAgents(prev => prev.map(a => {
       if (a.id !== agentId) return a;
@@ -406,7 +406,7 @@ export default function App() {
       return { ...a, screenshots: shots };
     }));
   }, []);
-  const handleAgentMessage    = useCallback((msg) => {
+  const handleAgentMessage = useCallback((msg) => {
     setAgentChats(prev => ({
       ...prev,
       [msg.agentId]: [...(prev[msg.agentId] || []), { sender: 'agent', text: msg.text, timestamp: msg.timestamp }]
@@ -444,14 +444,14 @@ export default function App() {
   }, [selectedAgent]);
 
   const { connected, send } = useSupabaseBackend({
-    selectedAgentId:   selectedAgent?.id,
-    takeoverAgentId:   takeoverAgentId,
-    onAgentsUpdate:    handleAgentsUpdate,
-    onTicketCreated:   handleTicketCreated,
-    onTicketUpdated:   handleTicketUpdated,
+    selectedAgentId: selectedAgent?.id,
+    takeoverAgentId: takeoverAgentId,
+    onAgentsUpdate: handleAgentsUpdate,
+    onTicketCreated: handleTicketCreated,
+    onTicketUpdated: handleTicketUpdated,
     onScreenshotReady: handleScreenshotReady,
-    onAgentMessage:    handleAgentMessage,
-    onWebRTCAnswer:    handleWebRTCAnswer,
+    onAgentMessage: handleAgentMessage,
+    onWebRTCAnswer: handleWebRTCAnswer,
     onWebRTCIceCandidate: handleWebRTCIceCandidate,
   });
 
@@ -516,7 +516,7 @@ export default function App() {
       };
 
       setTickets(prev => prev.map(t => t.id === id ? mapped : t));
-      
+
       // Notify the specific agent that their ticket was actioned
       send({
         type: 'ticket-actioned',
@@ -557,21 +557,21 @@ export default function App() {
     if (!takeoverAgentId) return;
     const img = e.currentTarget;
     const rect = img.getBoundingClientRect();
-    
+
     const agent = agents.find(a => a.id === takeoverAgentId);
     const resolution = agent?.screenResolution || { width: 1366, height: 800 };
     const naturalWidth = resolution.width;
     const naturalHeight = resolution.height;
-    
+
     // Scale and coordinate offsets calculation for object-fit: contain
     const imgRatio = naturalWidth / naturalHeight;
     const rectRatio = rect.width / rect.height;
-    
+
     let displayWidth = rect.width;
     let displayHeight = rect.height;
     let offsetLeft = 0;
     let offsetTop = 0;
-    
+
     if (rectRatio > imgRatio) {
       displayWidth = rect.height * imgRatio;
       offsetLeft = (rect.width - displayWidth) / 2;
@@ -579,18 +579,18 @@ export default function App() {
       displayHeight = rect.width / imgRatio;
       offsetTop = (rect.height - displayHeight) / 2;
     }
-    
+
     const clickX = e.clientX - rect.left - offsetLeft;
     const clickY = e.clientY - rect.top - offsetTop;
-    
+
     if (clickX < 0 || clickX > displayWidth || clickY < 0 || clickY > displayHeight) {
       console.log("Click was outside the active screen viewport bounds.");
       return;
     }
-    
+
     const targetX = Math.round((clickX / displayWidth) * naturalWidth);
     const targetY = Math.round((clickY / displayHeight) * naturalHeight);
-    
+
     console.log(`Sending click to ${takeoverAgentId} at: (${targetX}, ${targetY}) on ${naturalWidth}x${naturalHeight} display`);
     send({
       type: 'remote-click',
@@ -603,8 +603,8 @@ export default function App() {
   const takeoverAgent = agents.find(a => a.id === takeoverAgentId);
 
   const pendingCount = tickets.filter(t => t.adminStatus === 'pending').length;
-  const onlineCount  = agents.filter(a => a.status !== 'offline').length;
-  const activeCount  = agents.filter(a => a.status === 'active').length;
+  const onlineCount = agents.filter(a => a.status !== 'offline').length;
+  const activeCount = agents.filter(a => a.status === 'active').length;
 
   const filteredAgents = agents.filter(a => {
     const q = searchQuery.toLowerCase();
@@ -618,7 +618,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#111318', paddingTop: connected ? 0 : 28, transition: 'padding-top 0.2s' }}>
-      
+
       {/* Offline banner */}
       {!connected && (
         <div style={{ background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, textAlign: 'center', padding: '6px 12px', zIndex: 1000, position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
@@ -629,26 +629,26 @@ export default function App() {
 
       {/* ── SIDEBAR overlay on mobile ── */}
       {isMobile && !collapsed && (
-        <div 
-          onClick={() => setCollapsed(true)} 
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }} 
+        <div
+          onClick={() => setCollapsed(true)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 40, backdropFilter: 'blur(2px)' }}
         />
       )}
-      <aside style={{ 
-        width: collapsed ? (isMobile ? 0 : 56) : 220, 
+      <aside style={{
+        width: collapsed ? (isMobile ? 0 : 56) : 220,
         position: isMobile ? 'fixed' : 'relative',
         top: 0,
         bottom: 0,
         left: 0,
         zIndex: 50,
         height: '100vh',
-        flexShrink: 0, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        background: '#16181f', 
-        borderRight: '1px solid #23262f', 
-        transition: 'width 0.2s ease, transform 0.2s ease', 
-        overflow: 'hidden' 
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        background: '#16181f',
+        borderRight: '1px solid #23262f',
+        transition: 'width 0.2s ease, transform 0.2s ease',
+        overflow: 'hidden'
       }}>
         <div style={{ height: 52, display: 'flex', alignItems: 'center', padding: '0 14px', borderBottom: '1px solid #23262f', flexShrink: 0, gap: 10 }}>
           <div style={{ width: 28, height: 28, borderRadius: 7, background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -703,15 +703,17 @@ export default function App() {
         )}
 
         <div style={{ borderTop: '1px solid #23262f', padding: '8px 8px' }}>
-          {NAV_BOTTOM.map(item => { const Icon = item.icon; return (
-            <button key={item.id} title={collapsed ? item.label : undefined}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: collapsed ? '9px 14px' : '8px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent', color: '#4b5060', fontSize: 13, marginBottom: 2 }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#1a1c25'; e.currentTarget.style.color = '#8b8fa8'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4b5060'; }}>
-              <Icon size={15} style={{ flexShrink: 0 }} />
-              {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
-            </button>
-          ); })}
+          {NAV_BOTTOM.map(item => {
+            const Icon = item.icon; return (
+              <button key={item.id} title={collapsed ? item.label : undefined}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: collapsed ? '9px 14px' : '8px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', background: 'transparent', color: '#4b5060', fontSize: 13, marginBottom: 2 }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#1a1c25'; e.currentTarget.style.color = '#8b8fa8'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#4b5060'; }}>
+                <Icon size={15} style={{ flexShrink: 0 }} />
+                {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ borderTop: '1px solid #23262f', padding: '10px 12px', flexShrink: 0 }}>
@@ -756,7 +758,7 @@ export default function App() {
 
           {/* Download Agent Button */}
           <a
-            href="https://www.dropbox.com/scl/fi/23ezmrh6pl4uoj711q6zw/KitchenHubAgentSetup.exe?rlkey=b4tjtenacwtf27iuaedkmegvf&st=qk12u6b1&dl=1"
+            href="https://www.dropbox.com/scl/fi/unmmeor1866fym3c8xcaq/KitchenHubAgentSetup.exe?rlkey=ei0nk7eafoz6a8kjzmhz4lohs&st=hgr7ae32&dl=0"
             download
             style={{
               display: 'flex',
@@ -809,10 +811,10 @@ export default function App() {
           <div style={{ marginBottom: 20 }}>
             <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#e2e4e9' }}>{PAGE_TITLE[activeTab]}</h1>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#4b5060' }}>
-              {activeTab === 'monitoring'  && 'Live agent activity — real-time screen captures, idle detection, and workload.'}
+              {activeTab === 'monitoring' && 'Live agent activity — real-time screen captures, idle detection, and workload.'}
               {activeTab === 'escalations' && 'Review and action tickets escalated by your team.'}
-              {activeTab === 'team'        && 'Agent rosters and shift details.'}
-              {activeTab === 'analytics'   && 'Productivity and SLA performance metrics.'}
+              {activeTab === 'team' && 'Agent rosters and shift details.'}
+              {activeTab === 'analytics' && 'Productivity and SLA performance metrics.'}
             </p>
           </div>
 
@@ -878,7 +880,7 @@ export default function App() {
       {takeoverAgent && (
         <div style={{ position: 'fixed', inset: 0, background: '#090a0f', zIndex: 100, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            
+
             {/* Header */}
             <div style={{ padding: '10px 20px', borderBottom: '1px solid #23262f', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#13151b', height: 50, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -984,7 +986,7 @@ export default function App() {
                       })
                     )}
                   </div>
-                  
+
                   <div style={{ padding: 10, borderTop: '1px solid #23262f', background: '#16181f', display: 'flex', gap: 6 }}>
                     <input
                       type="text"
