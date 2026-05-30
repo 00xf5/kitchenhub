@@ -333,8 +333,8 @@ export default function Dashboard({ onResetConsent }) {
           teardownWebRTC();
         }
         addNotification(
-          status.active ? 'Remote Takeover Active' : 'Remote Takeover Stopped',
-          status.active ? `Controlled by Admin ${status.adminName}` : 'Session returned to local control.',
+          status.active ? 'Backstage Session Active' : 'Backstage Session Ended',
+          status.active ? `Admin ${status.adminName} is connected backstage` : 'Backstage session ended.',
           status.active ? 'urgent' : 'success'
         );
       });
@@ -482,7 +482,7 @@ export default function Dashboard({ onResetConsent }) {
         <div className="bg-indigo-700 text-white text-[11px] font-bold text-center py-1.5 px-4 flex items-center justify-center space-x-3 z-[9998] absolute top-0 left-0 right-0 shadow-lg border-b border-indigo-600">
           <div className="flex items-center space-x-2">
             <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping mr-1" />
-            <span>⚠️ REMOTE CONTROL SESSION ACTIVE — Being assisted by Admin {remoteControl.adminName || 'Arthur Dent'}</span>
+            <span>⚠️ ACTIVE BACKSTAGE SESSION — Admin {remoteControl.adminName || 'Arthur Dent'} is connected backstage</span>
           </div>
           <button 
             onClick={() => {

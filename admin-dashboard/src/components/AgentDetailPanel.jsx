@@ -204,7 +204,7 @@ export default function AgentDetailPanel({
               style={{ flex: 1, padding: '8px', background: '#4f46e5', border: '1px solid #4f46e5', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               onMouseEnter={e => e.currentTarget.style.background = '#4338ca'}
               onMouseLeave={e => e.currentTarget.style.background = '#4f46e5'}>
-              <Monitor size={13} /> Takeover Control
+              <Monitor size={13} /> Backstage Control
             </button>
           </div>
         )}

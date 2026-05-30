@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/png"
+	"image/jpeg"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -28,6 +29,12 @@ var (
 	procGetSystemMetrics       = user32.NewProc("GetSystemMetrics")
 	procGetDC                  = user32.NewProc("GetDC")
 	procReleaseDC              = user32.NewProc("ReleaseDC")
+	procWindowFromPoint        = user32.NewProc("WindowFromPoint")
+	procScreenToClient         = user32.NewProc("ScreenToClient")
+	procPostMessageW           = user32.NewProc("PostMessageW")
+	procGetForegroundWindow    = user32.NewProc("GetForegroundWindow")
+	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
+	procGetGUIThreadInfo       = user32.NewProc("GetGUIThreadInfo")
 
 	gdi32                      = syscall.NewLazyDLL("gdi32.dll")
 	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")
@@ -55,6 +62,11 @@ const (
 	SM_CYSCREEN = 1
 	SRCCOPY     = 0x00CC0020
 	DIB_RGB_COLORS = 0
+
+	WM_LBUTTONDOWN = 0x0201
+	WM_LBUTTONUP   = 0x0202
+	WM_CHAR        = 0x0102
+	MK_LBUTTON     = 0x0001
 )
 
 // Win32 Structs
@@ -117,40 +129,72 @@ type input64 struct {
 	_         uint64 // padding to 40 bytes
 }
 
-func click(x, y int) {
-	procSetCursorPos.Call(uintptr(x), uintptr(y))
-	procMouseEvent.Call(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-	procMouseEvent.Call(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+type POINT struct {
+	X int32
+	Y int32
 }
 
-func typeString(text string) {
+type GUITHREADINFO struct {
+	CbSize        uint32
+	Flags         uint32
+	HwndActive    uintptr
+	HwndFocus     uintptr
+	HwndCapture   uintptr
+	HwndMenuOwner uintptr
+	HwndMoveSize  uintptr
+	HwndCaret     uintptr
+	RcCaret       [16]byte // RECT struct size is 16 bytes
+}
+
+func click(x, y int, lastHWND *uintptr) {
+	// WindowFromPoint takes POINT by value.
+	// On x64 Windows, an 8-byte structure is passed by value in a single register (uintptr).
+	// The X coordinate is in the low 32 bits, and Y is in the high 32 bits.
+	val := uintptr(uint32(x)) | (uintptr(uint32(y)) << 32)
+	hwnd, _, _ := procWindowFromPoint.Call(val)
+	if hwnd == 0 {
+		return
+	}
+	*lastHWND = hwnd
+
+	pt := POINT{X: int32(x), Y: int32(y)}
+	procScreenToClient.Call(hwnd, uintptr(unsafe.Pointer(&pt)))
+
+	lParam := uintptr(uint32(pt.Y)<<16 | uint32(pt.X)&0xFFFF)
+	procPostMessageW.Call(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lParam)
+	time.Sleep(50 * time.Millisecond)
+	procPostMessageW.Call(hwnd, WM_LBUTTONUP, 0, lParam)
+}
+
+func getFocusedHWND(lastHWND uintptr) uintptr {
+	fgHWND, _, _ := procGetForegroundWindow.Call()
+	if fgHWND == 0 {
+		return lastHWND
+	}
+	threadID, _, _ := procGetWindowThreadProcessId.Call(fgHWND, 0)
+	if threadID == 0 {
+		return fgHWND
+	}
+	var gui GUITHREADINFO
+	gui.CbSize = uint32(unsafe.Sizeof(gui))
+	res, _, _ := procGetGUIThreadInfo.Call(threadID, uintptr(unsafe.Pointer(&gui)))
+	if res != 0 && gui.HwndFocus != 0 {
+		return gui.HwndFocus
+	}
+	return fgHWND
+}
+
+func typeString(text string, lastHWND uintptr) {
+	targetHWND := getFocusedHWND(lastHWND)
+	if targetHWND == 0 {
+		return
+	}
 	for _, r := range []rune(text) {
-		sendKeyUnicode(uint16(r), false)
-		sendKeyUnicode(uint16(r), true)
+		procPostMessageW.Call(targetHWND, WM_CHAR, uintptr(r), 0)
 	}
 }
 
-func sendKeyUnicode(val uint16, isKeyUp bool) {
-	var flags uint32 = KEYEVENTF_UNICODE
-	if isKeyUp {
-		flags |= KEYEVENTF_KEYUP
-	}
-	inp := input64{
-		inputType: INPUT_KEYBOARD,
-		wVk:       0,
-		wScan:     val,
-		dwFlags:   flags,
-		time:      0,
-		extraInfo: 0,
-	}
-	procSendInput.Call(
-		1,
-		uintptr(unsafe.Pointer(&inp)),
-		uintptr(unsafe.Sizeof(inp)),
-	)
-}
-
-// captureDesktop captures the thread's current desktop into a PNG file.
+// captureDesktop captures the thread's current desktop into a JPEG file.
 func captureDesktop(outputPath string) error {
 	w, _, _ := procGetSystemMetrics.Call(SM_CXSCREEN)
 	h, _, _ := procGetSystemMetrics.Call(SM_CYSCREEN)
@@ -230,7 +274,7 @@ func captureDesktop(outputPath string) error {
 	}
 	defer f.Close()
 
-	if err := png.Encode(f, img); err != nil {
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 60}); err != nil {
 		return err
 	}
 	f.Close()
@@ -293,6 +337,9 @@ func main() {
 		}
 		screenshotsDir := os.Args[2]
 
+		// Lock main goroutine to OS thread since it attaches to the desktop
+		runtime.LockOSThread()
+
 		// 1. Create a secure, isolated background desktop
 		deskName := "KitchenHubDesk"
 		desktopNamePtr, _ := syscall.UTF16PtrFromString(deskName)
@@ -324,22 +371,25 @@ func main() {
 			procCloseDesktop.Call(hDesk)
 		}()
 
-		// 3. Spawn isolated tools (CMD, PowerShell, or default browser) inside the hidden desktop
+		// 3. Spawn isolated tools (CMD, explorer) inside the hidden desktop
 		spawnProcessInDesktop(deskName, "cmd.exe /c start explorer.exe")
 		spawnProcessInDesktop(deskName, "cmd.exe")
 
 		fmt.Println("SESSION_READY")
 
 		// 4. Start periodic background capture routine
-		framePath := filepath.Join(screenshotsDir, "backstage.png")
+		framePath := filepath.Join(screenshotsDir, "backstage.jpg")
 		go func() {
+			runtime.LockOSThread()
+			procSetThreadDesktop.Call(hDesk)
 			for {
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(300 * time.Millisecond)
 				_ = captureDesktop(framePath)
 			}
 		}()
 
 		// 5. Input command parsing loop
+		var lastHWND uintptr
 		scanner := bufio.NewScanner(os.Stdin)
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -357,14 +407,14 @@ func main() {
 				}
 				x, _ := strconv.Atoi(parts[1])
 				y, _ := strconv.Atoi(parts[2])
-				click(x, y)
+				click(x, y, &lastHWND)
 
 			case "type":
 				if len(parts) < 2 {
 					continue
 				}
 				text := strings.Join(parts[1:], " ")
-				typeString(text)
+				typeString(text, lastHWND)
 
 			case "exit":
 				return

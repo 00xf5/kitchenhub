@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, desktopCapturer, powerMonitor, screen, session } = require('electron');
+const { app, BrowserWindow, ipcMain, desktopCapturer, powerMonitor, screen, session, Tray, Menu, nativeImage } = require('electron');
 const { exec, execFile } = require('child_process');
 const path = require('path');
 const fs   = require('fs');
@@ -68,6 +68,7 @@ let lastActivityTime  = Date.now();
 let mainWindow        = null;
 let controlSession    = null; // persistent control.exe session process
 let watchdogInterval  = null; // self-healing connection watchdog
+let tray              = null; // system tray icon
 const shouldStartHidden = process.argv.includes('--hidden');
 
 // ── Consent helpers ───────────────────────────────────────────────────
@@ -85,10 +86,11 @@ function saveConsent(agreed) {
 async function uploadScreenshotToSupabase(filepath, filename) {
   try {
     const fileBuffer = fs.readFileSync(filepath);
+    const contentType = filename.endsWith('.jpg') || filename.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
     const { data, error } = await supabase.storage
       .from('screenshots')
       .upload(filename, fileBuffer, {
-        contentType: 'image/png',
+        contentType: contentType,
         upsert: true
       });
 
@@ -302,7 +304,7 @@ function handleBroadcastMessage(event, msg) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
       }
-      startTracking(1500);
+      startTracking(300);
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: true, adminName: msg.adminName });
       }
@@ -389,13 +391,14 @@ function startHeartbeat() {
 async function takeScreenshot() {
   try {
     let imgBuffer;
-    const backstageFile = path.join(screenshotsDir, 'backstage.png');
+    const backstageFile = path.join(screenshotsDir, 'backstage.jpg');
+    const isBackstage = !!(controlSession && fs.existsSync(backstageFile));
 
-    if (controlSession && fs.existsSync(backstageFile)) {
+    if (isBackstage) {
       try {
         imgBuffer = fs.readFileSync(backstageFile);
       } catch (err) {
-        console.warn('[MONITOR] Reading backstage.png failed, falling back:', err.message);
+        console.warn('[MONITOR] Reading backstage.jpg failed, falling back:', err.message);
       }
     }
 
@@ -405,7 +408,8 @@ async function takeScreenshot() {
       imgBuffer = sources[0].thumbnail.toPNG();
     }
 
-    const filename  = `screenshot_${IDENTITY.agentId}_${Date.now()}.png`;
+    const extension = isBackstage ? 'jpg' : 'png';
+    const filename  = `screenshot_${IDENTITY.agentId}_${Date.now()}.${extension}`;
     const filepath  = path.join(screenshotsDir, filename);
     fs.writeFileSync(filepath, imgBuffer);
     console.log(`[MONITOR] Saved: ${filename}`);
@@ -456,7 +460,7 @@ function createWindow() {
   });
 
   if (shouldStartHidden) {
-    mainWindow.minimize();
+    mainWindow.hide();
   }
 
   if (isDev) {
@@ -465,6 +469,13 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
+
+  mainWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 
@@ -615,9 +626,47 @@ app.whenReady().then(() => {
 
   connectSupabase();
   createWindow();
+
+  // Initialize System Tray
+  try {
+    const iconPath = path.join(__dirname, 'public', 'favicon.svg');
+    let trayIcon;
+    if (fs.existsSync(iconPath)) {
+      trayIcon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 });
+    } else {
+      trayIcon = nativeImage.createEmpty();
+    }
+    
+    tray = new Tray(trayIcon);
+    tray.setToolTip('KitchenHub Agent');
+    const ctxMenu = Menu.buildFromTemplate([
+      { label: 'Open KitchenHub Portal', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
+      { type: 'separator' },
+      { label: 'Exit', click: () => {
+          if (tray) {
+            tray.destroy();
+            tray = null;
+          }
+          app.isQuitting = true;
+          app.quit();
+        }
+      }
+    ]);
+    tray.setContextMenu(ctxMenu);
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    console.log('[PERSISTENCE] System tray icon initialized');
+  } catch (err) {
+    console.error('[PERSISTENCE] Failed to create system tray:', err.message);
+  }
+
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // Do nothing - tray icon keeps app alive
 });

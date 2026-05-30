@@ -346,10 +346,10 @@ export default function App() {
     if (wsSendRef.current) wsSendRef.current(payload);
   }, []);
 
-  // WebRTC offer hook
+  // WebRTC offer hook (disabled to force backstage JPEG stream)
   const { remoteStream, handleAnswer, handleIceCandidate, teardown: teardownWebRTC } = useWebRTCOffer(
     takeoverAgentId,
-    !!takeoverAgentId,
+    false,
     sendWS
   );
 
@@ -885,13 +885,13 @@ export default function App() {
             <div style={{ padding: '10px 20px', borderBottom: '1px solid #23262f', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#13151b', height: 50, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite', display: 'inline-block' }} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e4e9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Remote Session takeover — {takeoverAgent.name} ({takeoverAgent.id})</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e4e9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Backstage Session — {takeoverAgent.name} ({takeoverAgent.id})</span>
               </div>
               <button onClick={() => handleStopTakeover(takeoverAgent.id)}
                 style={{ padding: '6px 14px', background: '#ef4444', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#dc2626'}
                 onMouseLeave={e => e.currentTarget.style.background = '#ef4444'}>
-                Disconnect & Exit Takeover
+                Disconnect Backstage
               </button>
             </div>
 
