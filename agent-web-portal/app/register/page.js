@@ -68,38 +68,34 @@ export default function RegisterPage() {
         {/* Background glow */}
         <div style={{
           position: 'fixed', top: -200, right: -200, width: 600, height: 600, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
 
         {/* Logo */}
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40, textDecoration: 'none' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg style={{ width: 16, height: 16, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 20, color: 'var(--text-primary)' }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32, textDecoration: 'none' }}>
+          <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 28, height: 28, borderRadius: 6 }} />
+          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>
             Bluestar <span style={{ color: 'var(--brand-light)' }}>KitchenHub</span>
           </span>
         </Link>
 
         {/* Card */}
-        <div className="glass" style={{ width: '100%', maxWidth: 460, borderRadius: 'var(--radius-xl)', padding: '40px 36px', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 20 }}>✉️</div>
-          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 26, color: 'var(--text-primary)', marginBottom: 12 }}>
-            Verify Your Email
+        <div className="panel glass animate-fade-up" style={{ width: '100%', maxWidth: 440, padding: '40px 36px', textAlign: 'center', border: '1px solid var(--border-strong)' }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>✉️</div>
+          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-primary)', marginBottom: 12 }}>
+            Confirm Credentials
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.65, marginBottom: 28 }}>
-            We've sent a verification link to <strong style={{ color: 'var(--text-primary)' }}>{form.email}</strong>.
-            Please check your inbox and click the link to confirm your account and activate your portal credentials.
+          <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
+            An activation link has been sent to <strong style={{ color: 'var(--text-primary)' }}>{form.email}</strong>.
+            Please verify the dispatch message in your mail client to generate your operator portal key and access details.
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Link href="/login" className="btn-primary" style={{ width: '100%', padding: '14px', textDecoration: 'none', textAlign: 'center', fontSize: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <Link href="/login" className="btn-primary" style={{ width: '100%', padding: '12px', textDecoration: 'none', textAlign: 'center', fontSize: 13 }}>
               Proceed to Login →
             </Link>
-            <button onClick={() => setVerificationSent(false)} className="btn-ghost" style={{ width: '100%', padding: '12px', fontSize: 13 }}>
-              ← Back to Registration
+            <button onClick={() => setVerificationSent(false)} className="btn-ghost" style={{ width: '100%', padding: '10px', fontSize: 12 }}>
+              ← Modify Credentials
             </button>
           </div>
         </div>
@@ -116,74 +112,69 @@ export default function RegisterPage() {
       {/* Background glow */}
       <div style={{
         position: 'fixed', top: -200, right: -200, width: 600, height: 600, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
       {/* Logo */}
-      <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40, textDecoration: 'none' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg style={{ width: 16, height: 16, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 20, color: 'var(--text-primary)' }}>
+      <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32, textDecoration: 'none' }}>
+        <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 28, height: 28, borderRadius: 6 }} />
+        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>
           Bluestar <span style={{ color: 'var(--brand-light)' }}>KitchenHub</span>
         </span>
       </Link>
 
       {/* Card */}
-      <div className="glass" style={{ width: '100%', maxWidth: 440, borderRadius: 'var(--radius-xl)', padding: '40px 36px' }}>
-        <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 26, color: 'var(--text-primary)', marginBottom: 6 }}>
-          Create Your Agent Account
+      <div className="panel glass animate-fade-up" style={{ width: '100%', maxWidth: 440, padding: '36px 32px', border: '1px solid var(--border-strong)' }}>
+        <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Register Operator Node
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 32 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
           Already have an account?{' '}
           <Link href="/login" style={{ color: 'var(--brand-light)', textDecoration: 'none', fontWeight: 600 }}>Log in</Link>
         </p>
 
         {error && (
           <div style={{
-            padding: '12px 16px', borderRadius: 'var(--radius-md)',
-            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-            color: '#fca5a5', fontSize: 13, marginBottom: 20,
+            padding: '10px 14px', borderRadius: 'var(--radius-sm)',
+            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+            color: '#fca5a5', fontSize: 12, marginBottom: 20, fontFamily: 'monospace'
           }}>
             ⚠️ {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="label">Full Name *</label>
+            <label className="label">Operator Full Name *</label>
             <input className="input" name="full_name" type="text" placeholder="Jane Smith" value={form.full_name} onChange={handleChange} required />
           </div>
           <div>
-            <label className="label">Email Address *</label>
+            <label className="label">Primary Email *</label>
             <input className="input" name="email" type="email" placeholder="jane@example.com" value={form.email} onChange={handleChange} required />
           </div>
           <div>
-            <label className="label">Phone Number</label>
+            <label className="label">Contact Telephone</label>
             <input className="input" name="phone" type="tel" placeholder="+1 (555) 000-0000" value={form.phone} onChange={handleChange} />
           </div>
           <div>
-            <label className="label">Password *</label>
+            <label className="label">Access Password *</label>
             <input className="input" name="password" type="password" placeholder="Min. 6 characters" value={form.password} onChange={handleChange} required />
           </div>
 
           <button className="btn-primary" type="submit" disabled={loading} style={{
-            width: '100%', padding: '14px', fontSize: 15, marginTop: 8,
-            opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer',
+            width: '100%', padding: '12px', fontSize: 13, marginTop: 8,
           }}>
             {loading
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                  <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} className="animate-spin" /> Creating Account...
+                  <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} className="animate-spin" /> Provisioning...
                 </span>
-              : 'Create My Agent Account →'}
+              : 'Provision Operator Node →'}
           </button>
         </form>
 
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20, lineHeight: 1.6 }}>
-          By registering, you agree to our terms of service. Nodes are provisioned securely via manual verification.
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 18, lineHeight: 1.5 }}>
+          Operator sessions are initialized in strict compliance with secure auditing standards. Security profiles are manually cryptographic key provisioned.
         </p>
       </div>
     </div>

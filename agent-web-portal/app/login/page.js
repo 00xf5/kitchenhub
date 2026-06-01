@@ -49,66 +49,65 @@ export default function LoginPage() {
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       padding: '40px 20px', position: 'relative', overflow: 'hidden',
     }}>
-      {/* Background glow */}
+      {/* Background radial glow */}
       <div style={{
         position: 'fixed', bottom: -200, left: -200, width: 600, height: 600, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(34,211,238,0.07) 0%, transparent 70%)',
+        background: 'radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
 
-      {/* Logo */}
-      <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 40, textDecoration: 'none' }}>
-        <div style={{ width: 36, height: 36, borderRadius: 9, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg style={{ width: 16, height: 16, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        </div>
-        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 20, color: 'var(--text-primary)' }}>
+      {/* Logo Header */}
+      <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 32, textDecoration: 'none' }}>
+        <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 28, height: 28, borderRadius: 6 }} />
+        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>
           Bluestar <span style={{ color: 'var(--brand-light)' }}>KitchenHub</span>
         </span>
       </Link>
 
-      {/* Card */}
-      <div className="glass" style={{ width: '100%', maxWidth: 420, borderRadius: 'var(--radius-xl)', padding: '40px 36px' }}>
-        <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 26, color: 'var(--text-primary)', marginBottom: 6 }}>
-          Welcome Back
+      {/* Card Wrapper */}
+      <div className="panel glass animate-fade-up" style={{ width: '100%', maxWidth: 400, padding: '36px 32px', border: '1px solid var(--border-strong)' }}>
+        <h1 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-primary)', marginBottom: 6 }}>
+          Operator Sign In
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 32 }}>
-          New here?{' '}
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+          Audit active node status. New here?{' '}
           <Link href="/register" style={{ color: 'var(--brand-light)', textDecoration: 'none', fontWeight: 600 }}>Create an account</Link>
         </p>
 
         {error && (
           <div style={{
-            padding: '12px 16px', borderRadius: 'var(--radius-md)',
-            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
-            color: '#fca5a5', fontSize: 13, marginBottom: 20,
+            padding: '10px 14px', borderRadius: 'var(--radius-sm)',
+            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+            color: '#fca5a5', fontSize: 12, marginBottom: 20, fontFamily: 'monospace'
           }}>
             ⚠️ {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <label className="label">Email Address</label>
-            <input className="input" name="email" type="email" placeholder="jane@example.com" value={form.email} onChange={handleChange} required />
+            <label className="label">Operator Email</label>
+            <input className="input" name="email" type="email" placeholder="operator@kitchenhub.com" value={form.email} onChange={handleChange} required />
           </div>
           <div>
-            <label className="label">Password</label>
-            <input className="input" name="password" type="password" placeholder="Your password" value={form.password} onChange={handleChange} required />
+            <label className="label">Security Password</label>
+            <input className="input" name="password" type="password" placeholder="••••••••" value={form.password} onChange={handleChange} required />
           </div>
 
           <button className="btn-primary" type="submit" disabled={loading} style={{
-            width: '100%', padding: '14px', fontSize: 15, marginTop: 8,
-            opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer',
+            width: '100%', padding: '12px', fontSize: 13, marginTop: 6,
           }}>
             {loading
               ? <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                  <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} className="animate-spin" /> Signing In...
+                  <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} className="animate-spin" /> Authorizing...
                 </span>
-              : 'Sign In →'}
+              : 'Authorize Session →'}
           </button>
         </form>
+
+        <div style={{ marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          🔐 <strong>Session Access Audit:</strong> Ingestion channel connections are recorded for compliance. Unauthorized connections will be immediately terminated.
+        </div>
       </div>
     </div>
   );
