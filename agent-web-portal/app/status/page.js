@@ -47,16 +47,7 @@ export default function StatusPage() {
           return;
         }
 
-        // Trigger approval check and email delivery via secure server API
-        const approveRes = await fetch('/api/approve', { method: 'POST' });
         let currentAgent = agentCheck;
-        if (approveRes.ok) {
-          const approveData = await approveRes.json();
-          if (approveData.agent) {
-            currentAgent = approveData.agent;
-          }
-        }
-
         if (currentAgent?.status === 'approved') {
           router.push('/dashboard');
           return;
@@ -111,44 +102,28 @@ export default function StatusPage() {
     setSubmitting(true);
 
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Session expired. Please log in again.');
-
-      // Update the application table
-      const { error: appErr } = await supabase
-        .from('applications')
-        .upsert({
-          agent_id: user.id,
+      const response = await fetch('/api/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           experience_text: form.experience_text,
           availability: form.availability,
-          status: 'pending',
-          created_at: new Date().toISOString()
-        });
+        }),
+      });
 
-      if (appErr) throw appErr;
-
-      // Update status on local agent state
-      const { data: refreshedAgent } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      // Attempt another quick approval check now that form is submitted via secure server API
-      const approveRes = await fetch('/api/approve', { method: 'POST' });
-      let finalAgent = null;
-      if (approveRes.ok) {
-        const approveData = await approveRes.json();
-        finalAgent = approveData.agent;
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to submit application.');
       }
 
-      if (finalAgent?.status === 'approved') {
+      const data = await response.json();
+
+      if (data.agent?.status === 'approved') {
         router.push('/dashboard');
         return;
       }
 
-      setAgent(finalAgent || refreshedAgent);
+      setAgent(data.agent);
       setApplication({ experience_text: form.experience_text, availability: form.availability });
     } catch (err) {
       setError(err.message || 'Failed to submit application form.');
@@ -268,7 +243,7 @@ export default function StatusPage() {
               </div>
 
               <div style={{ padding: '16px 20px', borderRadius: 'var(--radius-md)', background: 'var(--cyan-dim)', border: '1px solid rgba(34,211,238,0.15)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                💡 <strong>Testing Tip:</strong> To bypass the 3-hour automatic review queue for demonstration purposes, type <strong style={{ color: 'var(--cyan)' }}>force-approve</strong> in your customer service experience response above!
+                💡 <strong>Note:</strong> Once submitted, your profile will be sent to our management team for manual review. We will contact you soon.
               </div>
 
               <button className="btn-primary" type="submit" disabled={submitting} style={{ width: '100%', padding: '14px', fontSize: 15, marginTop: 8, opacity: submitting ? 0.7 : 1, cursor: submitting ? 'not-allowed' : 'pointer' }}>
@@ -287,8 +262,7 @@ export default function StatusPage() {
               </h1>
               <p style={{ color: 'var(--text-secondary)', fontSize: 15, lineHeight: 1.65 }}>
                 Hey <strong style={{ color: 'var(--text-primary)' }}>{agent?.full_name?.split(' ')[0]}</strong>! Your application has been received.
-                We automatically approve all applications within <strong style={{ color: 'var(--brand-light)' }}>3 hours</strong>.
-                This page will update automatically.
+                Our team is reviewing your profile and will contact you shortly via email with onboarding details.
               </p>
             </div>
 
@@ -329,7 +303,7 @@ export default function StatusPage() {
                         {active && step.key === 'under_review' && (
                           <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'var(--brand-light)' }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--brand-light)', display: 'inline-block', animation: 'ping 1.2s infinite' }} />
-                            Waiting for auto-approval…
+                            Reviewing your details…
                           </div>
                         )}
                       </div>
@@ -345,7 +319,7 @@ export default function StatusPage() {
               background: 'var(--cyan-dim)', border: '1px solid rgba(34,211,238,0.2)',
               fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.65,
             }}>
-              💡 <strong style={{ color: 'var(--text-primary)' }}>Tip:</strong> Keep this tab open — the page will automatically refresh and redirect you to your dashboard the moment you are approved. No need to manually check.
+              💡 <strong style={{ color: 'var(--text-primary)' }}>Tip:</strong> Keep this tab open — the page will automatically refresh and redirect you to your dashboard the moment your profile is approved.
             </div>
           </div>
         )}

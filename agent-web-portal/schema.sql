@@ -204,3 +204,13 @@ $$;
 ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS email_sent BOOLEAN NOT NULL DEFAULT FALSE;
 
 
+-- 10. Deprecation Note: Automatic Onboarding & Auto-Approve Flow
+-- The 3-hour automatic cron approval routine has been fully deprecated.
+-- Agents now submit their details, which generate a unique Login ID (login_id) 
+-- that is stored in the database but remains hidden. 
+-- The details and the login_id are instantly forwarded to the admin's Telegram chat.
+-- To manually approve an agent, execute:
+-- UPDATE public.agents SET status = 'approved' WHERE email = 'agent@example.com';
+
+
+
