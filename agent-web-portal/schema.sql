@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.agents (
     phone TEXT,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
     login_id TEXT UNIQUE,
+    email_sent BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -197,4 +198,9 @@ BEGIN
     LIMIT 1;
 END;
 $$;
+
+
+-- 9. Migration: Safe column addition if tables are already created
+ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS email_sent BOOLEAN NOT NULL DEFAULT FALSE;
+
 

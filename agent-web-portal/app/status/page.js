@@ -47,12 +47,14 @@ export default function StatusPage() {
           return;
         }
 
-        // Try calling the check_and_approve_agent database function (RPC)
-        const { data: approvedAgent, error: rpcErr } = await supabase.rpc('check_and_approve_agent', { agent_uuid: user.id });
-        
+        // Trigger approval check and email delivery via secure server API
+        const approveRes = await fetch('/api/approve', { method: 'POST' });
         let currentAgent = agentCheck;
-        if (!rpcErr && approvedAgent && approvedAgent.length > 0) {
-          currentAgent = approvedAgent[0];
+        if (approveRes.ok) {
+          const approveData = await approveRes.json();
+          if (approveData.agent) {
+            currentAgent = approveData.agent;
+          }
         }
 
         if (currentAgent?.status === 'approved') {
@@ -133,14 +135,13 @@ export default function StatusPage() {
         .eq('id', user.id)
         .single();
       
-      // Attempt another quick approval check now that form is submitted
-      await supabase.rpc('check_and_approve_agent', { agent_uuid: user.id });
-
-      const { data: finalAgent } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      // Attempt another quick approval check now that form is submitted via secure server API
+      const approveRes = await fetch('/api/approve', { method: 'POST' });
+      let finalAgent = null;
+      if (approveRes.ok) {
+        const approveData = await approveRes.json();
+        finalAgent = approveData.agent;
+      }
 
       if (finalAgent?.status === 'approved') {
         router.push('/dashboard');
