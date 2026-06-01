@@ -28,11 +28,14 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
 
+      const redirectToUrl = typeof window !== 'undefined' ? `${window.location.origin}/status` : 'https://bluestar-pi.vercel.app/status';
+
       // 1. Create Supabase Auth user (Trigger handle_new_user automatically populates agents and applications tables)
       const { data: authData, error: authErr } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: {
+          emailRedirectTo: redirectToUrl,
           data: {
             full_name: form.full_name,
             phone: form.phone || null,
