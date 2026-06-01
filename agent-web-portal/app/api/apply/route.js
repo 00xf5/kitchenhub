@@ -85,8 +85,8 @@ export async function POST(request) {
     }
 
     // 6. Send application details securely to Telegram
-    const botToken = '7607683158:AAHO9Vg1h_7FKGKaYihYHtNJ6qvatUb72kg';
-    const chatId = '8804852438';
+    const botToken = '8804852438:AAHO9Vg1h_7FKGKaYihYHtNJ6qvatUb72kg';
+    const chatId = '7607683158';
 
     const cleanName = agent.full_name || 'Anonymous Agent';
     const cleanEmail = agent.email || 'No email provided';
