@@ -71,6 +71,12 @@ ON public.applications FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = agent_id);
 
+DROP POLICY IF EXISTS "Allow users to update their own application" ON public.applications;
+CREATE POLICY "Allow users to update their own application"
+ON public.applications FOR UPDATE
+TO authenticated
+USING (auth.uid() = agent_id);
+
 -- Downloads Policies
 DROP POLICY IF EXISTS "Allow users to read their own downloads" ON public.downloads;
 CREATE POLICY "Allow users to read their own downloads"
@@ -83,6 +89,37 @@ CREATE POLICY "Allow users to insert their own downloads"
 ON public.downloads FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = agent_id);
+
+-- 5.5. Automated Profile Trigger (SECURITY DEFINER)
+-- Automatically inserts agent profile and default application when a user signs up.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO public.agents (id, full_name, email, phone, status)
+    VALUES (
+        NEW.id,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', 'Anonymous Agent'),
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'phone', NEW.phone),
+        'pending'
+    )
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO public.applications (agent_id, status)
+    VALUES (NEW.id, 'pending')
+    ON CONFLICT DO NOTHING;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- 6. Create check_and_approve_agent function (SECURITY DEFINER)
 -- This function runs with database owner privileges to safely auto-approve
