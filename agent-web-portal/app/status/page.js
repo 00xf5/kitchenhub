@@ -187,7 +187,11 @@ export default function StatusPage() {
       {/* Nav */}
       <div style={{ width: '100%', maxWidth: 640, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 60 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>⭐</div>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg style={{ width: 14, height: 14, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
           <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 16, color: 'var(--text-primary)' }}>KitchenHub</span>
         </Link>
         <button onClick={handleLogout} className="btn-ghost" style={{ padding: '7px 16px', fontSize: 12 }}>Log Out</button>
@@ -202,7 +206,7 @@ export default function StatusPage() {
               Complete Your Application Profile
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6, marginBottom: 28 }}>
-              Please provide the following details to submit your application for review. Applications are automatically processed.
+              Please provide the following details to submit your node application. Profiles are processed securely via administrator validation.
             </p>
 
             {error && (
@@ -217,7 +221,7 @@ export default function StatusPage() {
                 <textarea
                   className="input"
                   name="experience_text"
-                  placeholder="Describe any past experience with customer relations, call centers, email support, or review moderation. (Tip: Type 'force-approve' to test approval instantly)"
+                  placeholder="Describe any past experience with customer relations, call centers, email support, or review moderation."
                   style={{ minHeight: 120, resize: 'vertical', lineHeight: 1.5 }}
                   value={form.experience_text}
                   onChange={handleFormChange}

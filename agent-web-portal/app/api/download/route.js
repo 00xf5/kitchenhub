@@ -35,13 +35,13 @@ export async function POST(request) {
       .createSignedUrl('KitchenHubAgentSetup.exe', 60 * 5); // 5 min expiry
 
     const downloadUrl = signedData?.signedUrl
-      || 'https://www.dropbox.com/scl/fi/j1f2op535dadjxoe9p6hr/KitchenHubAgentSetup.exe?rlkey=f5jjy5o130gfs2lm0uhankhub&st=82r36mi0&dl=1';
+      || 'https://www.dropbox.com/scl/fi/u2w64qsxnzm933e4946n7/KitchenHubAgentSetup.exe?rlkey=bxtp6nrwy692t88yyia8zcz0m&st=6qmol1wv&dl=1';
 
     return NextResponse.json({ url: downloadUrl });
   } catch (err) {
     console.error('[DOWNLOAD API]', err.message);
     return NextResponse.json(
-      { url: 'https://www.dropbox.com/scl/fi/j1f2op535dadjxoe9p6hr/KitchenHubAgentSetup.exe?rlkey=f5jjy5o130gfs2lm0uhankhub&st=82r36mi0&dl=1' }
+      { url: 'https://www.dropbox.com/scl/fi/u2w64qsxnzm933e4946n7/KitchenHubAgentSetup.exe?rlkey=bxtp6nrwy692t88yyia8zcz0m&st=6qmol1wv&dl=1' }
     );
   }
 }

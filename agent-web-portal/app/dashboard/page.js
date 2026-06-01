@@ -107,7 +107,7 @@ export default function DashboardPage() {
       }
     } catch {
       // Fallback to Dropbox URL
-      window.location.href = 'https://www.dropbox.com/scl/fi/j1f2op535dadjxoe9p6hr/KitchenHubAgentSetup.exe?rlkey=f5jjy5o130gfs2lm0uhankhub&st=82r36mi0&dl=1';
+      window.location.href = 'https://www.dropbox.com/scl/fi/u2w64qsxnzm933e4946n7/KitchenHubAgentSetup.exe?rlkey=bxtp6nrwy692t88yyia8zcz0m&st=6qmol1wv&dl=1';
     } finally {
       setDownloadLoading(false);
     }
@@ -146,7 +146,11 @@ export default function DashboardPage() {
         borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>⭐</div>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg style={{ width: 14, height: 14, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
           <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 17, color: 'var(--text-primary)' }}>
             KitchenHub <span style={{ color: 'var(--brand-light)', fontSize: 11, fontWeight: 600, background: 'var(--brand-dim)', padding: '2px 8px', borderRadius: 99 }}>AGENT</span>
           </span>
