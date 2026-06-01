@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Identity
   getIdentity: ()            => ipcRenderer.invoke('get-identity'),
+  loginAgent: (loginId)      => ipcRenderer.invoke('login-agent', loginId),
+  logoutAgent: ()            => ipcRenderer.invoke('logout-agent'),
 
   // Tickets
   sendTicket: (ticket)       => ipcRenderer.invoke('send-ticket', ticket),

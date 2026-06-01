@@ -1,25 +1,34 @@
 import { useState, useEffect } from 'react';
 import ConsentGateway from './components/ConsentGateway';
+import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 
 function App() {
   const [loading, setLoading] = useState(true);
   const [hasConsent, setHasConsent] = useState(false);
+  const [identity, setIdentity] = useState(null);
 
-  // Check consent status on startup
+  // Initialize consent and identity on startup
   useEffect(() => {
-    async function checkConsent() {
-      if (window.electronAPI && window.electronAPI.getConsentStatus) {
-        try {
-          const status = await window.electronAPI.getConsentStatus();
-          setHasConsent(status);
-        } catch (err) {
-          console.error("Failed to fetch consent status:", err);
+    async function init() {
+      try {
+        if (window.electronAPI) {
+          if (window.electronAPI.getConsentStatus) {
+            const consentStatus = await window.electronAPI.getConsentStatus();
+            setHasConsent(consentStatus);
+          }
+          if (window.electronAPI.getIdentity) {
+            const id = await window.electronAPI.getIdentity();
+            setIdentity(id);
+          }
         }
+      } catch (err) {
+        console.error("Failed to initialize app state:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
-    checkConsent();
+    init();
   }, []);
 
   const handleAcceptConsent = async () => {
@@ -41,13 +50,30 @@ function App() {
       try {
         await window.electronAPI.resetConsent();
         setHasConsent(false);
+        setIdentity(null); // sign out too if consent reset
       } catch (err) {
         console.error("Failed to reset consent:", err);
       }
     } else {
       // Fallback
       setHasConsent(false);
+      setIdentity(null);
     }
+  };
+
+  const handleLoginSuccess = (id) => {
+    setIdentity(id);
+  };
+
+  const handleLogout = async () => {
+    if (window.electronAPI && window.electronAPI.logoutAgent) {
+      try {
+        await window.electronAPI.logoutAgent();
+      } catch (err) {
+        console.error("Failed to log out agent:", err);
+      }
+    }
+    setIdentity(null);
   };
 
   if (loading) {
@@ -61,14 +87,20 @@ function App() {
     );
   }
 
+  if (!hasConsent) {
+    return <ConsentGateway onAccept={handleAcceptConsent} />;
+  }
+
+  if (!identity) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   return (
-    <>
-      {hasConsent ? (
-        <Dashboard onResetConsent={handleResetConsent} />
-      ) : (
-        <ConsentGateway onAccept={handleAcceptConsent} />
-      )}
-    </>
+    <Dashboard 
+      identity={identity} 
+      onLogout={handleLogout} 
+      onResetConsent={handleResetConsent} 
+    />
   );
 }
 

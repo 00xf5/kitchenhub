@@ -48,14 +48,16 @@ try {
 const identityFile = path.join(userDataDir, 'identity.json');
 function loadIdentity() {
   try {
-    if (fs.existsSync(identityFile)) return JSON.parse(fs.readFileSync(identityFile, 'utf8'));
+    if (fs.existsSync(identityFile)) {
+      const id = JSON.parse(fs.readFileSync(identityFile, 'utf8'));
+      if (id && id.agentId && id.agentId !== 'AGT-LOCAL') {
+        return id;
+      }
+    }
   } catch {}
-  // Default identity — in production this would come from a login flow
-  const id = { agentId: 'AGT-LOCAL', name: 'Local Agent', email: 'agent@kitchenhub.com', shift: '9:00 AM – 5:00 PM' };
-  fs.writeFileSync(identityFile, JSON.stringify(id));
-  return id;
+  return null;
 }
-const IDENTITY = loadIdentity();
+let IDENTITY = loadIdentity();
 
 if (!fs.existsSync(screenshotsDir)) fs.mkdirSync(screenshotsDir, { recursive: true });
 
@@ -136,6 +138,10 @@ function connectSupabase() {
   if (!supabase) return;
   if (!hasConsent()) {
     console.log('[SUPABASE] Delaying connection until user gives consent');
+    return;
+  }
+  if (!IDENTITY || !IDENTITY.agentId) {
+    console.log('[SUPABASE] Delaying connection until agent logs in');
     return;
   }
 
@@ -222,8 +228,10 @@ function startConnectionWatchdog() {
 }
 
 // ── Control session helpers ───────────────────────────────────────────
-// Spawns control.exe in session mode — blocks agent input for the entire takeover.
-// All click/type commands are piped to stdin; no per-action process spawning.
+// Spawns control.exe which creates an isolated background Windows virtual desktop
+// (named 'KitchenHubDesk'). The agent's active foreground desktop is NEVER
+// touched — they continue working normally. The admin sees and controls only
+// the hidden background desktop. All click/type commands are piped to stdin.
 function startControlSession() {
   if (controlSession) return; // already running
   if (!fs.existsSync(controlExePath)) {
@@ -246,7 +254,7 @@ function startControlSession() {
   });
 
   controlSession.on('exit', (code) => {
-    console.log(`[CONTROL-GO] Session exited (code ${code}) — agent input restored`);
+    console.log(`[CONTROL-GO] Session exited (code ${code}) — backstage virtual desktop closed`);
     controlSession = null;
   });
 
@@ -255,7 +263,7 @@ function startControlSession() {
     controlSession = null;
   });
 
-  console.log('[CONTROL-GO] Session started — agent physical input is now blocked');
+  console.log('[CONTROL-GO] Backstage virtual desktop session started — agent foreground is completely unaffected');
 }
 
 function stopControlSession() {
@@ -298,8 +306,8 @@ function handleBroadcastMessage(event, msg) {
       break;
 
     case 'remote-control-start':
-      console.log('[SUPABASE] Admin started remote control takeover');
-      startControlSession(); // blocks agent input for duration of takeover
+      console.log('[SUPABASE] Admin started backstage session — spawning hidden virtual desktop');
+      startControlSession(); // creates isolated background desktop; agent foreground is unaffected
       if (mainWindow) {
         if (mainWindow.isMinimized()) mainWindow.restore();
         mainWindow.focus();
@@ -311,8 +319,8 @@ function handleBroadcastMessage(event, msg) {
       break;
 
     case 'remote-control-stop':
-      console.log('[SUPABASE] Admin stopped remote control takeover');
-      stopControlSession(); // exits session, restores agent input
+      console.log('[SUPABASE] Admin ended backstage session — closing hidden virtual desktop');
+      stopControlSession(); // closes the background virtual desktop (KitchenHubDesk)
       stopTracking();
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: false });
@@ -321,7 +329,7 @@ function handleBroadcastMessage(event, msg) {
 
     case 'remote-click':
       if (controlSession) {
-        // Preferred: pipe into existing blocked session
+        // Preferred: pipe click into the background virtual desktop session
         sessionWrite(`click ${msg.x} ${msg.y}`);
       } else if (robot) {
         robot.moveMouse(msg.x, msg.y);
@@ -337,7 +345,7 @@ function handleBroadcastMessage(event, msg) {
 
     case 'remote-type':
       if (controlSession) {
-        // Preferred: pipe into existing blocked session
+        // Pipe keystrokes into the background virtual desktop session
         sessionWrite(`type ${msg.text}`);
       } else if (robot) {
         robot.typeString(msg.text);
@@ -514,6 +522,84 @@ ipcMain.handle('reset-consent', async () => {
 
 ipcMain.handle('get-identity', () => IDENTITY);
 
+ipcMain.handle('login-agent', async (_event, loginId) => {
+  try {
+    if (!loginId || typeof loginId !== 'string') {
+      return { success: false, error: 'Login ID is required.' };
+    }
+    const cleanId = loginId.trim().toUpperCase();
+    console.log(`[LOGIN] Attempting login verification for ID: ${cleanId}`);
+
+    const { data, error } = await supabase.rpc('verify_agent_login', { input_login_id: cleanId });
+
+    if (error) {
+      console.error('[LOGIN] Database query error:', error.message);
+      return { success: false, error: 'Verification failed. Database error.' };
+    }
+
+    if (!data || data.length === 0) {
+      console.log(`[LOGIN] Verification failed: No approved agent found for ID ${cleanId}`);
+      return { success: false, error: 'Invalid or unapproved Agent Login ID.' };
+    }
+
+    const agentRecord = data[0];
+    IDENTITY = {
+      agentId: agentRecord.login_id,
+      uuid: agentRecord.id,
+      name: agentRecord.full_name,
+      email: agentRecord.email,
+      shift: agentRecord.availability || '9:00 AM – 5:00 PM'
+    };
+
+    fs.writeFileSync(identityFile, JSON.stringify(IDENTITY));
+    console.log(`[LOGIN] Login successful. Identity written for: ${IDENTITY.name} (${IDENTITY.agentId})`);
+
+    // Connect to Supabase now that we have identity
+    connectSupabase();
+
+    return { success: true, identity: IDENTITY };
+  } catch (err) {
+    console.error('[LOGIN] Login error:', err.message);
+    return { success: false, error: err.message || 'An error occurred during login.' };
+  }
+});
+
+ipcMain.handle('logout-agent', async () => {
+  try {
+    console.log('[LOGIN] Logging out current agent...');
+    
+    // 1. Delete identity file
+    if (fs.existsSync(identityFile)) {
+      fs.unlinkSync(identityFile);
+    }
+    
+    // 2. Clear global memory state
+    IDENTITY = null;
+
+    // 3. Unsubscribe from channels
+    await teardownChannels();
+    
+    if (watchdogInterval) {
+      clearInterval(watchdogInterval);
+      watchdogInterval = null;
+    }
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+
+    if (mainWindow) {
+      mainWindow.webContents.send('connection-status', false);
+    }
+
+    console.log('[LOGIN] Logout complete.');
+    return { success: true };
+  } catch (err) {
+    console.error('[LOGIN] Logout error:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
 ipcMain.handle('send-ticket', async (_event, ticket) => {
   try {
     const ticketId = `KH-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -586,8 +672,8 @@ ipcMain.handle('webrtc-signal-out', (_event, payload) => {
 });
 
 ipcMain.handle('stop-remote-control', () => {
-  console.log('[AGENT] Local request to stop remote takeover');
-  stopControlSession(); // restores agent input immediately
+  console.log('[AGENT] Local request to end backstage session');
+  stopControlSession(); // closes the background virtual desktop (KitchenHubDesk)
   sendBroadcast('remote-control-stop', { agentId: IDENTITY.agentId });
   handleBroadcastMessage('remote-control-stop', {});
   return true;

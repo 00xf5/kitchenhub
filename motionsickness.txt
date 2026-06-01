@@ -1,0 +1,163 @@
+Project Overview
+Product Name: Bluestar KitchenHub Agent Platform
+Core Purpose: Recruit, onboard, and manage remote agents who handle restaurant customer reviews, complaints, and feedback through a dedicated Desktop App.
+
+2. High-Level Architecture
+
+Frontend: Web Dashboard (React.js / Next.js recommended)
+Backend: Node.js + Express or Laravel (PHP)
+Database: MySQL or PostgreSQL
+Desktop App: Electron.js (for Windows & macOS)
+Authentication: Custom Login ID system + JWT
+Hosting: VPS (e.g., Contabo, Hetzner, or AWS)
+Email: SMTP or SendGrid / Mailgun
+
+
+3. Complete User Journey
+
+Registration → Account created
+Application → Submitted for review
+Auto-Approval (after 3 hours) → Status changes
+Approved Dashboard → Login ID + Download section
+Download → Firefox enforcement
+Desktop App → Login with ID → Start work
+
+
+4. Web Dashboard Pages & Features
+Public Pages
+
+/agents – Landing page with “Become an Agent” CTA
+/register – Registration form
+
+Agent Dashboard (After Login)
+Before Approval:
+
+Dashboard Home
+Application Form
+Application Status (Pending / Under Review)
+
+After Approval:
+
+Green success banner: "✅ You are now a Professional Bluestar Agent"
+Unique Login ID Card (e.g., BSK-AG-78492) with Copy button
+Download Section (with Firefox enforcement)
+Training Module (simple checklist or embedded video)
+Quick Start Guide
+Support / Contact
+
+
+5. Firefox Download Enforcement (Exact Implementation)
+HTML<!-- Download Button -->
+<button id="downloadBtn" class="btn btn-primary btn-lg">
+    Download Bluestar KitchenHub Desktop App (Windows 64-bit)
+</button>
+
+<!-- Modal -->
+<div id="firefoxModal" class="modal">
+  <div class="modal-content">
+    <h3>🦊 Important: Use Mozilla Firefox</h3>
+    <p>For security and compatibility reasons, the Bluestar Desktop App can only be downloaded using <strong>Mozilla Firefox</strong>.</p>
+    
+    <ol>
+      <li>Open Mozilla Firefox</li>
+      <li>Come back to this page</li>
+      <li>Click the Download button again</li>
+    </ol>
+    
+    <button onclick="closeModal()">I Understand</button>
+  </div>
+</div>
+JavaScript Logic:
+JavaScriptfunction isFirefox() {
+    return navigator.userAgent.toLowerCase().includes('firefox');
+}
+
+document.getElementById('downloadBtn').addEventListener('click', function(e) {
+    if (!isFirefox()) {
+        e.preventDefault();
+        document.getElementById('firefoxModal').style.display = 'flex';
+        this.disabled = true;
+        this.textContent = "Switch to Firefox to Enable Download";
+    } else {
+        // Trigger actual download
+        window.location.href = "/api/download/app?platform=windows";
+    }
+});
+Auto-check on page load (recommended).
+
+6. Backend Requirements
+Database Schema (Main Tables)
+SQLusers (
+    id, 
+    full_name, 
+    email, 
+    phone, 
+    password_hash, 
+    role: 'agent',
+    status: 'pending'/'approved'/'rejected',
+    login_id: 'BSK-AG-XXXXX',
+    created_at
+)
+
+applications (
+    id, 
+    user_id, 
+    experience_text, 
+    availability, 
+    status, 
+    reviewed_at
+)
+
+downloads (
+    id, 
+    user_id, 
+    ip_address, 
+    browser, 
+    downloaded_at
+)
+Key Backend Endpoints
+
+POST /api/register
+POST /api/apply
+GET /api/me (returns approval status + login_id)
+GET /api/download/app (checks browser + logs download)
+
+
+7. Approval System
+
+After application submission, set a cron job / scheduler to run every 30 minutes.
+If application is 3+ hours old and status = pending → Approve automatically.
+Generate unique login_id (format: BSK-AG- + random 5 digits).
+Send approval email.
+Update user status to approved.
+
+
+8. Email Templates
+Approval Email:
+Subject: Congratulations! You are now a Bluestar Professional Agent
+Body:
+textDear [Name],
+
+You have been approved as a Professional Agent at Bluestar KitchenHub.
+
+Your Unique Login ID: BSK-AG-78492
+
+Please:
+1. Go to your dashboard
+2. Download the desktop app using Firefox
+3. Install and login with your Login ID
+
+Welcome to the team!
+
+9. Desktop App Requirements (Electron)
+Main Features:
+
+Login screen (using Login ID only)
+Dashboard showing assigned restaurants
+List of customer reviews & complaints
+Reply box with templates
+Rating system for responses
+Shift timer / Availability toggle
+Notifications for new reviews
+
+Tech: Electron.js + React (for UI consistency with web)

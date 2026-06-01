@@ -2,112 +2,265 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Inbox, CheckCircle, ArrowUpRight, List, Search, Send, FileText, 
   User, ShieldAlert, Sparkles, RefreshCw, AlertCircle, Phone, 
-  RotateCcw, DollarSign, Package, MessageSquare, Info
+  RotateCcw, DollarSign, Package, MessageSquare, Info, LogOut
 } from 'lucide-react';
 
 const INITIAL_TICKETS = [
   {
     id: 'KH-1042',
-    customer: {
-      name: 'Sarah Connor',
-      email: 'sconnor@cyberdyne.com',
-      phone: '+1 (555) 901-2029',
-      avatar: 'SC',
-    },
-    subject: 'Damaged frying pan on arrival',
+    customer: { name: 'Sarah Mitchell', email: 'smitchell@gmail.com', phone: '+1 (312) 555-0182', avatar: 'SM' },
+    subject: 'Frying pan handle snapped — safety hazard',
     messages: [
-      { sender: 'customer', text: 'Hi support team, I received my KitchenHub Non-Stick Pan today but the handle is completely bent. How can I get a replacement?', time: '2 hours ago' },
-      { sender: 'agent', text: 'Hello Sarah! I am so sorry to hear that. Could you please provide a photo of the box and the damage? I will resolve this immediately.', time: '1 hour ago' },
-      { sender: 'customer', text: 'Sure, I have attached a photo. The shipping box looked like it was crushed. Please send a new one as soon as possible.', time: '45 mins ago' }
+      { sender: 'customer', text: 'Hi, I was cooking dinner last night and the handle on my Premium Non-Stick Pan completely snapped off while I was carrying it. Hot oil went everywhere. This is a serious safety issue and I need this resolved urgently.', time: '2 hours ago' },
+      { sender: 'agent', text: 'Hello Sarah, I am so sorry to hear this happened — that sounds really frightening. Your safety is our top priority. Could you please share a photo of the broken handle so I can escalate this immediately and arrange a replacement?', time: '1 hour ago' },
+      { sender: 'customer', text: 'I have attached 3 photos. The weld joint between the handle and the pan completely failed. My countertop also has oil damage. This is unacceptable for a $90 item.', time: '45 mins ago' },
     ],
-    status: 'open',
-    priority: 'high',
-    order: {
-      id: 'ORD-99831',
-      product: 'Premium Non-Stick Frying Pan (12")',
-      date: 'May 18, 2026',
-      price: '$89.99'
-    },
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99831', product: 'Premium Non-Stick Frying Pan (12")', date: 'May 18, 2026', price: '$89.99' },
     notes: ''
   },
   {
     id: 'KH-1043',
-    customer: {
-      name: 'Bruce Wayne',
-      email: 'bruce@waynecorp.com',
-      phone: '+1 (555) 100-1939',
-      avatar: 'BW',
-    },
-    subject: 'Requesting refund for Chef Knife',
+    customer: { name: 'Carlos Mendez', email: 'cmendez@outlook.com', phone: '+1 (786) 555-0341', avatar: 'CM' },
+    subject: 'Wrong knife set delivered — ordered 6-piece, got 3-piece',
     messages: [
-      { sender: 'customer', text: 'I purchased the Damascus steel knife, but it does not fit my hand well. I would like to initiate a return and refund.', time: '4 hours ago' }
+      { sender: 'customer', text: 'My order arrived today but the box clearly says 3-Piece Starter Set — I ordered and paid for the 6-Piece Professional Set. The price difference is $80. I need the right product or a refund.', time: '4 hours ago' },
     ],
-    status: 'pending',
-    priority: 'medium',
-    order: {
-      id: 'ORD-99805',
-      product: 'Damascus Steel Chef Knife (8")',
-      date: 'May 15, 2026',
-      price: '$149.50'
-    },
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99805', product: 'Professional Knife Set (6-Piece)', date: 'May 15, 2026', price: '$149.50' },
     notes: ''
   },
   {
     id: 'KH-1044',
-    customer: {
-      name: 'Peter Parker',
-      email: 'web@dailybugle.net',
-      phone: '+1 (555) 789-2311',
-      avatar: 'PP',
-    },
-    subject: 'Where is my order?',
+    customer: { name: 'Jennifer Okafor', email: 'jen.okafor@yahoo.com', phone: '+1 (404) 555-0229', avatar: 'JO' },
+    subject: 'Where is my order? Tracking shows stuck for 6 days',
     messages: [
-      { sender: 'customer', text: 'Order was placed 5 days ago, tracking says still in warehouse. Any update?', time: 'Yesterday' },
-      { sender: 'agent', text: 'Hi Peter, let me check that tracking number. It seems there was a minor sorting delay at the USPS hub.', time: 'Yesterday' },
-      { sender: 'customer', text: 'Got it, let me know when it ships out please.', time: '12 hours ago' }
+      { sender: 'customer', text: 'My order was placed May 19th and tracking has shown "In Transit - Memphis Hub" for 6 days with no update. The estimated delivery was May 24th. Is my package lost?', time: 'Yesterday' },
+      { sender: 'agent', text: 'Hi Jennifer, I have checked with our logistics team. There was a USPS sorting facility delay in Memphis due to weather. Your parcel should be re-routed within 24-48 hours. I have flagged this for priority handling.', time: 'Yesterday' },
+      { sender: 'customer', text: 'Still no update 24 hours later. Can you please open a trace investigation with USPS?', time: '8 hours ago' },
     ],
-    status: 'open',
-    priority: 'low',
-    order: {
-      id: 'ORD-99882',
-      product: 'KitchenHub Ceramic Mixing Bowl Set',
-      date: 'May 20, 2026',
-      price: '$45.00'
-    },
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-99882', product: 'KitchenHub Ceramic Mixing Bowl Set (5-Piece)', date: 'May 19, 2026', price: '$45.00' },
     notes: ''
   },
   {
     id: 'KH-1039',
-    customer: {
-      name: 'Tony Stark',
-      email: 'tony@starkindustries.com',
-      phone: '+1 (555) 300-3000',
-      avatar: 'TS',
-    },
-    subject: 'Double charged on card',
+    customer: { name: 'Derek Huang', email: 'd.huang@protonmail.com', phone: '+1 (415) 555-0098', avatar: 'DH' },
+    subject: 'Double charged — $120 billed twice on May 10',
     messages: [
-      { sender: 'customer', text: 'Check your billing system, I was charged twice for ORD-99723.', time: '3 days ago' },
-      { sender: 'agent', text: 'Hi Tony, I verified our gateway and refunded the duplicate charge. It should clear in 2-3 business days.', time: '2 days ago' },
-      { sender: 'customer', text: 'Confirmed, credit card company shows pending credit now. Thank you!', time: '1 day ago' }
+      { sender: 'customer', text: 'I was charged $120 twice on May 10th for order ORD-99723. My bank statement clearly shows two separate authorizations. Please refund the duplicate charge immediately.', time: '3 days ago' },
+      { sender: 'agent', text: 'Hi Derek, I have reviewed our payment gateway logs and confirmed the duplicate authorization. I have issued a full refund of $120 to your original payment method. Please allow 3-5 business days for your bank to process it.', time: '2 days ago' },
+      { sender: 'customer', text: 'The refund just appeared as pending on my card — thank you for handling this quickly!', time: '1 day ago' },
     ],
-    status: 'resolved',
-    priority: 'high',
-    order: {
-      id: 'ORD-99723',
-      product: 'Smart Electric Kettle (WiFi Enabled)',
-      date: 'May 10, 2026',
-      price: '$120.00'
-    },
-    notes: 'Double charge processed due to double checkout click. Resolved.'
-  }
+    status: 'resolved', priority: 'high',
+    order: { id: 'ORD-99723', product: 'Smart Electric Kettle (WiFi Enabled)', date: 'May 10, 2026', price: '$120.00' },
+    notes: 'Duplicate charge confirmed in payment gateway. $120 refund processed. Resolved.'
+  },
+  {
+    id: 'KH-1046',
+    customer: { name: 'Amara Osei', email: 'amara.osei@gmail.com', phone: '+1 (202) 555-0477', avatar: 'AO' },
+    subject: 'Blender making grinding noise after 3 uses',
+    messages: [
+      { sender: 'customer', text: 'I purchased the KH Pro Blender 3 weeks ago and it has already started making a loud grinding noise every time I use it. It sounds like something is wrong with the motor or blade assembly.', time: '5 hours ago' },
+      { sender: 'agent', text: 'Hello Amara, I am sorry to hear your blender is already having issues — that should not happen. Could you describe if the grinding noise occurs immediately when you start it, or only after it has been running for a minute?', time: '4 hours ago' },
+      { sender: 'customer', text: 'It starts immediately from the moment I switch it on. Even on the lowest setting. I have a video I can share.', time: '3 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99901', product: 'KitchenHub Pro Blender 1200W', date: 'May 5, 2026', price: '$165.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1047',
+    customer: { name: 'Michael Torres', email: 'mtorres.chef@gmail.com', phone: '+1 (214) 555-0334', avatar: 'MT' },
+    subject: 'Item arrived with cracked ceramic coating — unusable',
+    messages: [
+      { sender: 'customer', text: 'My Dutch oven arrived with several cracks across the ceramic interior coating. I cannot use this — food would get into those cracks and it is a food safety issue. I need a replacement or full refund.', time: '1 day ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99912', product: 'KitchenHub Enameled Cast Iron Dutch Oven (6 Qt)', date: 'May 22, 2026', price: '$210.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1048',
+    customer: { name: 'Priya Sharma', email: 'priya.s@hotmail.com', phone: '+1 (510) 555-0661', avatar: 'PS' },
+    subject: 'Subscription auto-renewal charged without reminder',
+    messages: [
+      { sender: 'customer', text: 'I was charged $79.99 today for a "KitchenHub Premium Membership" renewal. I never received any reminder email beforehand. I want to cancel this subscription and request a full refund since I was not aware it would auto-renew.', time: '2 hours ago' },
+      { sender: 'agent', text: 'Hello Priya, I completely understand your concern. I have checked your account — the renewal reminder was sent to your registered email on May 15th, but I can see it may have gone to spam. I will process a full refund for this renewal as a goodwill gesture and cancel your subscription. You will receive a confirmation within 24 hours.', time: '1 hour ago' },
+      { sender: 'customer', text: 'Thank you! Please do make sure the subscription is cancelled so this does not happen again.', time: '30 mins ago' },
+    ],
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-SUBS-041', product: 'KitchenHub Premium Membership (Annual)', date: 'May 25, 2026', price: '$79.99' },
+    notes: 'Refund approved and subscription cancelled pending confirmation.'
+  },
+  {
+    id: 'KH-1049',
+    customer: { name: 'Fatou Diallo', email: 'fatou.diallo@gmail.com', phone: '+44 7700 900245', avatar: 'FD' },
+    subject: 'Incorrect promotional discount not applied at checkout',
+    messages: [
+      { sender: 'customer', text: 'I used promo code KITCHEN20 at checkout which should give 20% off but my final invoice shows full price of $89.99 with no discount applied. I have a screenshot of the promo page confirming the code was valid.', time: '3 hours ago' },
+    ],
+    status: 'open', priority: 'low',
+    order: { id: 'ORD-99934', product: 'Chef\'s Silicone Utensil Set (12-Piece)', date: 'May 24, 2026', price: '$89.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1050',
+    customer: { name: 'Robert Kellerman', email: 'rkellerman@comcast.net', phone: '+1 (617) 555-0572', avatar: 'RK' },
+    subject: 'Food processor missing blade attachments from box',
+    messages: [
+      { sender: 'customer', text: 'I received the Elite Food Processor today but the box was missing 2 out of 4 blade attachments — specifically the dough blade and the julienne disc. Without those this machine is barely functional.', time: '6 hours ago' },
+      { sender: 'agent', text: 'Hi Robert, I apologize for the incomplete shipment — this should not have passed our quality check. I am arranging to ship the missing dough blade and julienne disc attachments as a priority overnight package. You will receive a shipping confirmation within the hour.', time: '5 hours ago' },
+    ],
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-99940', product: 'KitchenHub Elite Food Processor (1000W)', date: 'May 21, 2026', price: '$189.00' },
+    notes: 'Missing attachments confirmed. Overnight shipping of dough blade + julienne disc arranged.'
+  },
+  {
+    id: 'KH-1051',
+    customer: { name: 'Grace Abiodun', email: 'grace.a@yahoo.com', phone: '+1 (713) 555-0129', avatar: 'GA' },
+    subject: 'Electric grill not heating above 200°F — not cooking food',
+    messages: [
+      { sender: 'customer', text: 'I have been using the electric contact grill for 2 weeks but it simply will not heat up beyond 200 degrees Fahrenheit. I need it to reach at least 400°F to sear properly. I have tried different power outlets and settings.', time: '1 day ago' },
+      { sender: 'agent', text: 'Hello Grace, I am sorry your grill is not performing as expected. Based on your description this sounds like a thermostat malfunction. Could you try a quick test — preheat for 10 minutes on maximum setting and tell me the highest temperature the indicator shows?', time: '22 hours ago' },
+      { sender: 'customer', text: 'Preheated for 15 minutes on max. Thermometer reads 198°F. The product specs say it should reach 450°F. This unit is definitely defective.', time: '10 hours ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99928', product: 'KitchenHub Pro Contact Grill (1800W)', date: 'May 12, 2026', price: '$134.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1052',
+    customer: { name: 'Thomas Brandt', email: 'tbrandt@gmail.com', phone: '+1 (503) 555-0893', avatar: 'TB' },
+    subject: 'Returned item 18 days ago — still no refund received',
+    messages: [
+      { sender: 'customer', text: 'I returned the knife block set via tracked USPS on May 8th. The tracking shows it was delivered to your warehouse on May 10th — 18 days ago. I still have not received my $200 refund. Return reference is RMA-20291.', time: '5 hours ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99789', product: 'Professional Knife Block Set (15-Piece)', date: 'April 28, 2026', price: '$199.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1053',
+    customer: { name: 'Mei Lin', email: 'mei.lin.cook@gmail.com', phone: '+1 (626) 555-0254', avatar: 'ML' },
+    subject: 'Cookware set has peeling non-stick coating after 1 month',
+    messages: [
+      { sender: 'customer', text: 'After barely 4 weeks of regular use the non-stick coating on two of my pans from the 5-piece set is already starting to peel and flake. I am extremely concerned about ingesting any of this material — this is a food safety hazard. I want an urgent response.', time: '3 hours ago' },
+      { sender: 'agent', text: 'Hello Mei, I completely understand your concern — peeling non-stick coating is unacceptable and your health comes first. Please stop using those pans immediately. I am initiating an urgent quality review case and will arrange a full replacement set to be shipped via priority shipping within 24 hours. I will also be escalating this to our product quality team for investigation.', time: '2 hours ago' },
+      { sender: 'customer', text: 'Thank you for the quick response. Please ensure the replacement is from a different batch. Also — can you confirm the coating material? I want to check if it is PFOA-free.', time: '1 hour ago' },
+    ],
+    status: 'pending', priority: 'high',
+    order: { id: 'ORD-99855', product: 'KitchenHub Non-Stick Cookware Set (5-Piece)', date: 'April 28, 2026', price: '$175.00' },
+    notes: 'URGENT: Peeling non-stick. Escalate to product quality team. Replacement set arranged.'
+  },
+  {
+    id: 'KH-1054',
+    customer: { name: 'Ahmed Al-Rashid', email: 'ahmed.rashid@live.com', phone: '+1 (469) 555-0765', avatar: 'AR' },
+    subject: 'Gift order never arrived — recipient says nothing delivered',
+    messages: [
+      { sender: 'customer', text: 'I sent a gift order to my mother for Mother\'s Day on May 7th. Tracking showed delivered on May 11th but my mother says nothing was left at her door. The carrier marked it delivered but it was not. This is order ORD-99810.', time: '2 days ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99810', product: 'Deluxe Bamboo Cutting Board Set + Engraving', date: 'May 7, 2026', price: '$58.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1055',
+    customer: { name: 'Lauren Brooks', email: 'lauren.brooks@icloud.com', phone: '+1 (901) 555-0384', avatar: 'LB' },
+    subject: 'Request to change delivery address before shipment',
+    messages: [
+      { sender: 'customer', text: 'I placed an order 30 minutes ago (ORD-99955) but just realized I need to change the delivery address. I am moving to a new apartment this week. Can this be updated before it ships?', time: '35 mins ago' },
+      { sender: 'agent', text: 'Hi Lauren! I can see your order is still in pre-shipment status. I have placed a hold on it and updated the delivery address to the one you provided. You should receive an updated order confirmation email within 15 minutes confirming the change.', time: '20 mins ago' },
+    ],
+    status: 'resolved', priority: 'low',
+    order: { id: 'ORD-99955', product: 'Stainless Steel Spice Rack + 12 Spice Jars', date: 'May 25, 2026', price: '$39.99' },
+    notes: 'Delivery address updated pre-shipment. Resolved.'
+  },
+  {
+    id: 'KH-1056',
+    customer: { name: 'David Okonkwo', email: 'davokon@gmail.com', phone: '+1 (240) 555-0618', avatar: 'DO' },
+    subject: 'Waffle maker sparking and smells burnt — potential fire risk',
+    messages: [
+      { sender: 'customer', text: 'My Belgian Waffle Maker started sparking near the power cord connection and there is a strong burning electrical smell. I turned it off immediately and unplugged it. This feels like a serious fire hazard. What should I do?', time: '1 hour ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99871', product: 'KitchenHub Belgian Waffle Maker Pro', date: 'May 14, 2026', price: '$72.50' },
+    notes: ''
+  },
+  {
+    id: 'KH-1057',
+    customer: { name: 'Nadia Petrov', email: 'nadia.p@email.com', phone: '+1 (718) 555-0199', avatar: 'NP' },
+    subject: 'Requesting bulk order discount — restaurant purchase',
+    messages: [
+      { sender: 'customer', text: 'I am the purchasing manager for Cafe Verdana (a restaurant chain). We are interested in ordering 50+ units of your commercial chef\'s knife set for our locations. Do you offer bulk or B2B pricing? I need a quote.', time: '4 hours ago' },
+      { sender: 'agent', text: 'Hello Nadia, thank you for your interest in a bulk order! For orders of 50+ units we do have dedicated B2B pricing. I will need to forward this enquiry to our commercial sales team who can prepare a formal quote within 1-2 business days. Could you provide your business email and tax ID so they can process this properly?', time: '3 hours ago' },
+      { sender: 'customer', text: 'Of course. Business email: purchasing@cafeverdana.com | Tax ID: 82-1234567. We are hoping for delivery before June 15th — is that feasible?', time: '2 hours ago' },
+    ],
+    status: 'forwarded', priority: 'low',
+    order: { id: 'ORD-QUOTE-001', product: 'Professional Chef\'s Knife Set (Bulk Enquiry)', date: 'May 25, 2026', price: 'TBD' },
+    notes: 'Forwarded to B2B commercial sales team. June 15 deadline flagged.'
+  },
+  {
+    id: 'KH-1058',
+    customer: { name: 'Isabella Reyes', email: 'izzy.reyes87@gmail.com', phone: '+1 (813) 555-0449', avatar: 'IR' },
+    subject: 'Sous vide circulator display not working — screen blank',
+    messages: [
+      { sender: 'customer', text: 'My Sous Vide Precision Circulator powers on (the heating element works) but the LCD display is completely blank. I cannot see the temperature or set any settings. I have tried resetting it by holding the power button for 10 seconds.', time: '7 hours ago' },
+      { sender: 'agent', text: 'Hi Isabella, I am sorry to hear about the display issue. I have a few troubleshooting steps for you: (1) Try a factory reset by holding both the + and - buttons simultaneously for 5 seconds while the unit is on. (2) If that fails, check if the display has any dim backlight at all — if completely dark vs. dim indicates different issues.', time: '6 hours ago' },
+      { sender: 'customer', text: 'Tried factory reset — no change. The display is completely black, no backlight whatsoever. The unit still heats the water but I cannot control anything.', time: '4 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99862', product: 'KitchenHub Sous Vide Precision Circulator 1200W', date: 'May 8, 2026', price: '$128.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1059',
+    customer: { name: 'James Whitfield', email: 'jwhitfield@gmail.com', phone: '+1 (615) 555-0837', avatar: 'JW' },
+    subject: 'Five-star review left incorrectly — want it removed or edited',
+    messages: [
+      { sender: 'customer', text: 'I accidentally left a 5-star review for a product that I actually wanted to give 2 stars. The product was the cast iron skillet and it arrived damaged. I clicked the wrong star rating. Can you help me edit or remove that review?', time: '2 days ago' },
+    ],
+    status: 'resolved', priority: 'low',
+    order: { id: 'ORD-99744', product: 'Pre-Seasoned Cast Iron Skillet (10")', date: 'May 2, 2026', price: '$49.99' },
+    notes: 'Directed customer to review portal settings to edit. Separate damage claim opened as KH-1059b.'
+  },
+  {
+    id: 'KH-1060',
+    customer: { name: 'Chioma Adeyemi', email: 'chioma.adeyemi@gmail.com', phone: '+1 (646) 555-0221', avatar: 'CA' },
+    subject: 'Received used/returned item — packaging was already opened',
+    messages: [
+      { sender: 'customer', text: 'The stand mixer I ordered clearly arrived in previously-opened packaging. The plastic wrap had been reapplied poorly, there were fingerprints on the body, and there was residue inside the bowl. I paid full price for what appears to be a used return.', time: '1 day ago' },
+      { sender: 'agent', text: 'Chioma, I sincerely apologize for this — receiving what appears to be a used item at full price is completely unacceptable. You should always receive a brand new, factory-sealed product. I am arranging an urgent replacement from a sealed stock batch with free priority shipping, and I will also apply a $30 credit to your account as an apology for this experience.', time: '20 hours ago' },
+      { sender: 'customer', text: 'I appreciate the credit and the replacement. But I need a prepaid label to send this one back — I do not want to pay return shipping for something that was not my fault.', time: '18 hours ago' },
+    ],
+    status: 'pending', priority: 'high',
+    order: { id: 'ORD-99918', product: 'KitchenHub Professional Stand Mixer 5.5 Qt', date: 'May 19, 2026', price: '$289.00' },
+    notes: 'Prepaid return label being arranged. $30 account credit applied. Replacement in process.'
+  },
+  {
+    id: 'KH-1061',
+    customer: { name: 'Marcus Webb', email: 'marcus.webb@yahoo.com', phone: '+1 (303) 555-0565', avatar: 'MW' },
+    subject: 'Coffee grinder making inconsistent grind size',
+    messages: [
+      { sender: 'customer', text: 'The burr coffee grinder I purchased produces wildly inconsistent grind sizes even on the same setting. I am getting both powder-fine and large chunks in the same batch. For a $95 burr grinder this is unacceptable — a blade grinder would do better.', time: '9 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99943', product: 'KitchenHub Conical Burr Coffee Grinder (40mm)', date: 'May 20, 2026', price: '$94.99' },
+    notes: ''
+  },
 ];
 
 const TEMPLATES = [
-  { name: 'Acknowledge', text: 'Hello! Thank you for contacting KitchenHub Support. I have received your request and am looking into this right now. Please allow me a minute.' },
-  { name: 'Shipping Apology', text: 'We sincerely apologize for the delay. We are currently experiencing higher volume at our sorting hubs. I have upgraded your shipping speed at no cost, and your order will arrive shortly.' },
-  { name: 'Replacement Approved', text: 'Great news! I have approved a replacement for your order. A brand new unit will be shipped to your address on file within 24 hours. You will receive a tracking link via email.' },
-  { name: 'Refund Initiated', text: 'I have initiated a full refund back to your original payment method. Please allow 3-5 business days for your financial institution to process the credit.' }
+  { name: 'Acknowledge', text: 'Hello! Thank you for contacting KitchenHub Support. I have received your request and am looking into this right now. Please allow me a moment.' },
+  { name: 'Apology', text: 'I sincerely apologize for the inconvenience this has caused. This is not the standard of service we aim to provide, and I want to make this right for you immediately.' },
+  { name: 'Shipping Delay', text: 'We sincerely apologize for the shipping delay. There is currently a higher-than-usual volume at our carrier hubs. I have flagged your order for priority handling and you should receive an update within 24 hours.' },
+  { name: 'Replacement Approved', text: 'Great news — I have approved a free replacement for your item. A brand new unit will be shipped to your address on file within 24 hours via priority shipping. You will receive a tracking link via email.' },
+  { name: 'Refund Initiated', text: 'I have initiated a full refund back to your original payment method. Please allow 3-5 business days for your bank to process the credit. You will also receive a refund confirmation email.' },
+  { name: 'Safety Escalation', text: 'Your safety is our absolute top priority. Please stop using this product immediately. I am escalating this to our product quality and safety team urgently and will arrange an immediate replacement at no cost to you.' },
+  { name: 'Troubleshoot Request', text: 'Thank you for the details. Before arranging a replacement, I would like to try one quick troubleshooting step with you — could you please try [describe step]? This will help me identify the exact issue.' },
+  { name: 'Prepaid Return Label', text: 'I have arranged a prepaid return shipping label which will be emailed to you within the next 30 minutes. Simply print it, attach it to the original box, and drop it off at any USPS location. No cost to you.' },
 ];
+
 
 // ── WebRTC answer-side hook (agent portal) ──────────────────────────────
 // Activated when the admin sends a WebRTC offer via the server relay.
@@ -211,7 +364,7 @@ function useWebRTCAnswerer() {
   return { teardown };
 }
 
-export default function Dashboard({ onResetConsent }) {
+export default function Dashboard({ identity, onLogout, onResetConsent }) {
   const [tickets, setTickets] = useState(INITIAL_TICKETS);
   const [selectedTicketId, setSelectedTicketId] = useState(INITIAL_TICKETS[0].id);
   const [activeTab, setActiveTab] = useState('all'); // all, inbox, resolved, forwarded
@@ -614,15 +767,38 @@ export default function Dashboard({ onResetConsent }) {
           </button>
         </nav>
 
-        {/* Reset Option (Demo Only) */}
-        <div className="p-4 border-t border-gray-800 bg-gray-950">
-          <button
-            onClick={onResetConsent}
-            className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-red-950/40 hover:bg-red-900/60 border border-red-900/50 text-red-200 rounded-lg text-xs transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Demo & Exit Portal</span>
-          </button>
+        {/* Agent Profile & Sign Out */}
+        <div className="p-4 border-t border-gray-800 bg-gray-950/90 flex flex-col space-y-3">
+          {identity && (
+            <div className="flex items-center space-x-3 text-left">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-bold text-xs flex items-center justify-center shadow-md flex-shrink-0">
+                {identity.name ? identity.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AG'}
+              </div>
+              <div className="flex-1 min-w-0 font-sans">
+                <p className="text-xs font-bold text-gray-200 truncate">{identity.name || 'Agent Name'}</p>
+                <p className="text-[10px] text-gray-500 font-mono truncate">{identity.agentId || 'BSK-AG-XXXXX'}</p>
+                <p className="text-[9px] text-indigo-400 font-medium truncate mt-0.5">{identity.shift || '9:00 AM – 5:00 PM'}</p>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex flex-col space-y-1.5">
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-250 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Sign Out Shift</span>
+            </button>
+
+            <button
+              onClick={onResetConsent}
+              className="w-full flex items-center justify-center space-x-2 px-3 py-1 text-gray-500 hover:text-red-400 text-[10px] transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>Reset Consent & Exit</span>
+            </button>
+          </div>
         </div>
       </div>
 
