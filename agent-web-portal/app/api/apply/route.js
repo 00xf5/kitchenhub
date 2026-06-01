@@ -67,20 +67,23 @@ export async function POST(request) {
     }
 
     // 5. Upsert questionnaire into applications table
+    // onConflict:'agent_id' tells PostgREST to UPDATE the existing row instead of inserting a new one
     const { data: application, error: appUpsertErr } = await supabase
       .from('applications')
-      .upsert({
-        agent_id: user.id,
-        experience_text,
-        availability,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-      })
+      .upsert(
+        {
+          agent_id: user.id,
+          experience_text,
+          availability,
+          status: 'pending',
+        },
+        { onConflict: 'agent_id' }
+      )
       .select('*')
       .single();
 
     if (appUpsertErr) {
-      console.error('[APPLY API] Applications upsert failed:', appUpsertErr.message);
+      console.error('[APPLY API] Applications upsert failed:', appUpsertErr.message, '| Code:', appUpsertErr.code);
       return NextResponse.json({ error: 'Failed to record questionnaire responses' }, { status: 500 });
     }
 

@@ -59,10 +59,10 @@ const features = [
 ];
 
 const steps = [
-  { n: '01', title: 'Node Registration', desc: 'Initialize your local credentials on the secure onboarding portal.' },
-  { n: '02', title: 'Questionnaire Dispatch', desc: 'Provide your operational shift metrics and experience history.' },
-  { n: '03', title: 'Admin Verification', desc: 'Your profile is sent securely to our dashboard via Telegram for manual review.' },
-  { n: '04', title: 'Terminal Connection', desc: 'Download the desktop app, log in with your access code, and connect to the queue.' },
+  { n: '01', title: 'Create Your Account', desc: 'Sign up with your name, email, and a secure password on the registration page.' },
+  { n: '02', title: 'Complete Your Profile', desc: 'Fill in your availability and share a brief background on your customer service experience.' },
+  { n: '03', title: 'Manual Review', desc: 'Our team reviews your application and contacts you via email with your approval details.' },
+  { n: '04', title: 'Download & Start', desc: 'Download the desktop app, log in with your unique access code, and begin working your shift.' },
 ];
 
 export default function LandingPage() {
@@ -78,40 +78,16 @@ export default function LandingPage() {
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid var(--border)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, var(--brand) 0%, var(--cyan) 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg style={{ width: 16, height: 16, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)' }}>
-              Bluestar <span style={{ color: 'var(--brand-light)' }}>KitchenHub</span>
-            </span>
-          </div>
-
-          {/* Telemetry Status Indicator */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontFamily: 'monospace',
-            background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.18)',
-            padding: '4px 10px', borderRadius: 99, color: 'var(--green)',
-            letterSpacing: '0.05em'
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: 'var(--green)',
-              display: 'inline-block', boxShadow: '0 0 8px var(--green)'
-            }} />
-            OPERATIONAL: 1,248 ACTIVE NODES
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
+          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 800, fontSize: 18, color: 'var(--text-primary)' }}>
+            Bluestar <span style={{ color: 'var(--brand-light)' }}>KitchenHub</span>
+          </span>
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
           <Link href="/login" className="btn-ghost" style={{ padding: '8px 20px', fontSize: 13 }}>Log In</Link>
-          <Link href="/register" className="btn-primary" style={{ padding: '8px 20px', fontSize: 13 }}>Join the Network</Link>
+          <Link href="/register" className="btn-primary" style={{ padding: '8px 20px', fontSize: 13 }}>Apply Now</Link>
         </div>
       </nav>
 
@@ -169,19 +145,6 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          {/* Technical stats */}
-          <div style={{ marginTop: 80, display: 'flex', gap: 60, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {[
-              ['1.2k+', 'Distributed Nodes'],
-              ['Telegram Dispatch', 'Instant Telemetry'],
-              ['99.98%', 'Queue Uptime']
-            ].map(([val, label]) => (
-              <div key={label} style={{ textAlign: 'center', minWidth: 150 }}>
-                <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 24, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>{val}</div>
-                <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
