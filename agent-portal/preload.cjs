@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, desktopCapturer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // Consent
@@ -22,6 +22,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ── WebRTC Signaling bridge (renderer ↔ main ↔ WS server) ───────────
   // Renderer calls this to send an answer or ICE candidate back to server
   sendWebRTCSignal: (payload) => ipcRenderer.invoke('webrtc-signal-out', payload),
+  getDesktopSourceId: async () => {
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1280, height: 720 } });
+    if (!sources || sources.length === 0) throw new Error('No desktop source available');
+    return sources[0].id;
+  },
 
   // Listeners (main → renderer)
   onScreenshotNotification: (cb) => {

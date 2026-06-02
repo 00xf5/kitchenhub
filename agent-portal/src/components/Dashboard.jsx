@@ -289,6 +289,40 @@ const ICE_SERVERS = (() => {
   return DEFAULT;
 })();
 
+async function captureAgentScreenStream() {
+  const constraints = {
+    video: { frameRate: { ideal: 15, max: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  };
+
+  if (navigator.mediaDevices?.getDisplayMedia) {
+    try {
+      return await navigator.mediaDevices.getDisplayMedia(constraints);
+    } catch (err) {
+      console.warn('[WebRTC] getDisplayMedia failed, falling back to Electron desktop capture:', err.message);
+    }
+  }
+
+  if (window.electronAPI?.getDesktopSourceId) {
+    const sourceId = await window.electronAPI.getDesktopSourceId();
+    return await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: sourceId,
+          maxFrameRate: 30,
+          minFrameRate: 15,
+          maxWidth: 1280,
+          maxHeight: 720,
+        }
+      }
+    });
+  }
+
+  throw new Error('Screen capture is not available in this Electron environment');
+}
+
 function useWebRTCAnswerer() {
   const pcRef     = useRef(null);
   const streamRef = useRef(null);
@@ -311,13 +345,9 @@ function useWebRTCAnswerer() {
 
       // ── Incoming offer from admin ────────────────────────────────
       if (signal.type === 'webrtc-offer') {
-        console.log('[WebRTC] Offer received — starting getDisplayMedia()');
+        console.log('[WebRTC] Offer received — capturing desktop stream');
         try {
-          // Capture the real desktop stream
-          const stream = await navigator.mediaDevices.getDisplayMedia({
-            video: { frameRate: { ideal: 15, max: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
-            audio: false,
-          });
+          const stream = await captureAgentScreenStream();
           streamRef.current = stream;
 
           const pc = new RTCPeerConnection({
