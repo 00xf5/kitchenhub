@@ -324,10 +324,12 @@ async function captureAgentScreenStream() {
 }
 
 function useWebRTCAnswerer() {
-  const pcRef     = useRef(null);
+  const pcRef = useRef(null);
   const streamRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
 
   const teardown = useCallback(() => {
+    pendingIceCandidatesRef.current = [];
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
@@ -342,6 +344,19 @@ function useWebRTCAnswerer() {
     if (!window.electronAPI?.onWebRTCSignalIn) return;
 
     window.electronAPI.onWebRTCSignalIn(async (signal) => {
+      if (signal.type === 'webrtc-ice-candidate' && signal.candidate) {
+        if (pcRef.current) {
+          try {
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } catch (err) {
+            console.warn('[WebRTC] ICE candidate error:', err.message);
+          }
+        } else {
+          pendingIceCandidatesRef.current.push(signal.candidate);
+          console.log('[WebRTC] Queued remote ICE candidate until peer connection is ready');
+        }
+        return;
+      }
 
       // ── Incoming offer from admin ────────────────────────────────
       if (signal.type === 'webrtc-offer') {
@@ -454,6 +469,17 @@ function useWebRTCAnswerer() {
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
+          if (pendingIceCandidatesRef.current.length) {
+            const queued = pendingIceCandidatesRef.current.splice(0);
+            for (const candidate of queued) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (err) {
+                console.warn('[WebRTC] Queued ICE candidate error:', err.message);
+              }
+            }
+          }
+
           // Send answer back: renderer → IPC → main.cjs → WS → server → admin
           if (window.electronAPI?.sendWebRTCSignal) {
             window.electronAPI.sendWebRTCSignal({ type: 'webrtc-answer', sdp: answer });
@@ -467,15 +493,6 @@ function useWebRTCAnswerer() {
           };
         } catch (err) {
           console.error('[WebRTC] getDisplayMedia failed:', err.message);
-        }
-      }
-
-      // ── Incoming ICE candidate from admin ──────────────────────────
-      if (signal.type === 'webrtc-ice-candidate' && pcRef.current) {
-        try {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        } catch (err) {
-          console.warn('[WebRTC] ICE candidate error:', err.message);
         }
       }
     });
