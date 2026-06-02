@@ -133,7 +133,7 @@ export default function DashboardPage() {
       }
     } catch {
       // Fallback to Dropbox URL
-      window.location.href = 'https://www.dropbox.com/scl/fi/u2w64qsxnzm933e4946n7/KitchenHubAgentSetup.exe?rlkey=bxtp6nrwy692t88yyia8zcz0m&st=6qmol1wv&dl=1';
+      window.location.href = 'https://www.dropbox.com/scl/fi/knbo9qg0qgzzxf8xfiepx/KitchenHubAgentSetup.exe?rlkey=an0lo7orqspz5hhc9zo0eaplh&st=3elmigje&dl=0';
     } finally {
       setDownloadLoading(false);
     }
