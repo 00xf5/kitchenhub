@@ -1,0 +1,1377 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { 
+  Inbox, CheckCircle, ArrowUpRight, List, Search, Send, FileText, 
+  User, ShieldAlert, Sparkles, RefreshCw, AlertCircle, Phone, 
+  RotateCcw, DollarSign, Package, MessageSquare, Info, LogOut
+} from 'lucide-react';
+
+const INITIAL_TICKETS = [
+  {
+    id: 'KH-1042',
+    customer: { name: 'Sarah Mitchell', email: 'smitchell@gmail.com', phone: '+1 (312) 555-0182', avatar: 'SM' },
+    subject: 'Frying pan handle snapped — safety hazard',
+    messages: [
+      { sender: 'customer', text: 'Hi, I was cooking dinner last night and the handle on my Premium Non-Stick Pan completely snapped off while I was carrying it. Hot oil went everywhere. This is a serious safety issue and I need this resolved urgently.', time: '2 hours ago' },
+      { sender: 'agent', text: 'Hello Sarah, I am so sorry to hear this happened — that sounds really frightening. Your safety is our top priority. Could you please share a photo of the broken handle so I can escalate this immediately and arrange a replacement?', time: '1 hour ago' },
+      { sender: 'customer', text: 'I have attached 3 photos. The weld joint between the handle and the pan completely failed. My countertop also has oil damage. This is unacceptable for a $90 item.', time: '45 mins ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99831', product: 'Premium Non-Stick Frying Pan (12")', date: 'May 18, 2026', price: '$89.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1043',
+    customer: { name: 'Carlos Mendez', email: 'cmendez@outlook.com', phone: '+1 (786) 555-0341', avatar: 'CM' },
+    subject: 'Wrong knife set delivered — ordered 6-piece, got 3-piece',
+    messages: [
+      { sender: 'customer', text: 'My order arrived today but the box clearly says 3-Piece Starter Set — I ordered and paid for the 6-Piece Professional Set. The price difference is $80. I need the right product or a refund.', time: '4 hours ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99805', product: 'Professional Knife Set (6-Piece)', date: 'May 15, 2026', price: '$149.50' },
+    notes: ''
+  },
+  {
+    id: 'KH-1044',
+    customer: { name: 'Jennifer Okafor', email: 'jen.okafor@yahoo.com', phone: '+1 (404) 555-0229', avatar: 'JO' },
+    subject: 'Where is my order? Tracking shows stuck for 6 days',
+    messages: [
+      { sender: 'customer', text: 'My order was placed May 19th and tracking has shown "In Transit - Memphis Hub" for 6 days with no update. The estimated delivery was May 24th. Is my package lost?', time: 'Yesterday' },
+      { sender: 'agent', text: 'Hi Jennifer, I have checked with our logistics team. There was a USPS sorting facility delay in Memphis due to weather. Your parcel should be re-routed within 24-48 hours. I have flagged this for priority handling.', time: 'Yesterday' },
+      { sender: 'customer', text: 'Still no update 24 hours later. Can you please open a trace investigation with USPS?', time: '8 hours ago' },
+    ],
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-99882', product: 'KitchenHub Ceramic Mixing Bowl Set (5-Piece)', date: 'May 19, 2026', price: '$45.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1039',
+    customer: { name: 'Derek Huang', email: 'd.huang@protonmail.com', phone: '+1 (415) 555-0098', avatar: 'DH' },
+    subject: 'Double charged — $120 billed twice on May 10',
+    messages: [
+      { sender: 'customer', text: 'I was charged $120 twice on May 10th for order ORD-99723. My bank statement clearly shows two separate authorizations. Please refund the duplicate charge immediately.', time: '3 days ago' },
+      { sender: 'agent', text: 'Hi Derek, I have reviewed our payment gateway logs and confirmed the duplicate authorization. I have issued a full refund of $120 to your original payment method. Please allow 3-5 business days for your bank to process it.', time: '2 days ago' },
+      { sender: 'customer', text: 'The refund just appeared as pending on my card — thank you for handling this quickly!', time: '1 day ago' },
+    ],
+    status: 'resolved', priority: 'high',
+    order: { id: 'ORD-99723', product: 'Smart Electric Kettle (WiFi Enabled)', date: 'May 10, 2026', price: '$120.00' },
+    notes: 'Duplicate charge confirmed in payment gateway. $120 refund processed. Resolved.'
+  },
+  {
+    id: 'KH-1046',
+    customer: { name: 'Amara Osei', email: 'amara.osei@gmail.com', phone: '+1 (202) 555-0477', avatar: 'AO' },
+    subject: 'Blender making grinding noise after 3 uses',
+    messages: [
+      { sender: 'customer', text: 'I purchased the KH Pro Blender 3 weeks ago and it has already started making a loud grinding noise every time I use it. It sounds like something is wrong with the motor or blade assembly.', time: '5 hours ago' },
+      { sender: 'agent', text: 'Hello Amara, I am sorry to hear your blender is already having issues — that should not happen. Could you describe if the grinding noise occurs immediately when you start it, or only after it has been running for a minute?', time: '4 hours ago' },
+      { sender: 'customer', text: 'It starts immediately from the moment I switch it on. Even on the lowest setting. I have a video I can share.', time: '3 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99901', product: 'KitchenHub Pro Blender 1200W', date: 'May 5, 2026', price: '$165.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1047',
+    customer: { name: 'Michael Torres', email: 'mtorres.chef@gmail.com', phone: '+1 (214) 555-0334', avatar: 'MT' },
+    subject: 'Item arrived with cracked ceramic coating — unusable',
+    messages: [
+      { sender: 'customer', text: 'My Dutch oven arrived with several cracks across the ceramic interior coating. I cannot use this — food would get into those cracks and it is a food safety issue. I need a replacement or full refund.', time: '1 day ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99912', product: 'KitchenHub Enameled Cast Iron Dutch Oven (6 Qt)', date: 'May 22, 2026', price: '$210.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1048',
+    customer: { name: 'Priya Sharma', email: 'priya.s@hotmail.com', phone: '+1 (510) 555-0661', avatar: 'PS' },
+    subject: 'Subscription auto-renewal charged without reminder',
+    messages: [
+      { sender: 'customer', text: 'I was charged $79.99 today for a "KitchenHub Premium Membership" renewal. I never received any reminder email beforehand. I want to cancel this subscription and request a full refund since I was not aware it would auto-renew.', time: '2 hours ago' },
+      { sender: 'agent', text: 'Hello Priya, I completely understand your concern. I have checked your account — the renewal reminder was sent to your registered email on May 15th, but I can see it may have gone to spam. I will process a full refund for this renewal as a goodwill gesture and cancel your subscription. You will receive a confirmation within 24 hours.', time: '1 hour ago' },
+      { sender: 'customer', text: 'Thank you! Please do make sure the subscription is cancelled so this does not happen again.', time: '30 mins ago' },
+    ],
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-SUBS-041', product: 'KitchenHub Premium Membership (Annual)', date: 'May 25, 2026', price: '$79.99' },
+    notes: 'Refund approved and subscription cancelled pending confirmation.'
+  },
+  {
+    id: 'KH-1049',
+    customer: { name: 'Fatou Diallo', email: 'fatou.diallo@gmail.com', phone: '+44 7700 900245', avatar: 'FD' },
+    subject: 'Incorrect promotional discount not applied at checkout',
+    messages: [
+      { sender: 'customer', text: 'I used promo code KITCHEN20 at checkout which should give 20% off but my final invoice shows full price of $89.99 with no discount applied. I have a screenshot of the promo page confirming the code was valid.', time: '3 hours ago' },
+    ],
+    status: 'open', priority: 'low',
+    order: { id: 'ORD-99934', product: 'Chef\'s Silicone Utensil Set (12-Piece)', date: 'May 24, 2026', price: '$89.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1050',
+    customer: { name: 'Robert Kellerman', email: 'rkellerman@comcast.net', phone: '+1 (617) 555-0572', avatar: 'RK' },
+    subject: 'Food processor missing blade attachments from box',
+    messages: [
+      { sender: 'customer', text: 'I received the Elite Food Processor today but the box was missing 2 out of 4 blade attachments — specifically the dough blade and the julienne disc. Without those this machine is barely functional.', time: '6 hours ago' },
+      { sender: 'agent', text: 'Hi Robert, I apologize for the incomplete shipment — this should not have passed our quality check. I am arranging to ship the missing dough blade and julienne disc attachments as a priority overnight package. You will receive a shipping confirmation within the hour.', time: '5 hours ago' },
+    ],
+    status: 'pending', priority: 'medium',
+    order: { id: 'ORD-99940', product: 'KitchenHub Elite Food Processor (1000W)', date: 'May 21, 2026', price: '$189.00' },
+    notes: 'Missing attachments confirmed. Overnight shipping of dough blade + julienne disc arranged.'
+  },
+  {
+    id: 'KH-1051',
+    customer: { name: 'Grace Abiodun', email: 'grace.a@yahoo.com', phone: '+1 (713) 555-0129', avatar: 'GA' },
+    subject: 'Electric grill not heating above 200°F — not cooking food',
+    messages: [
+      { sender: 'customer', text: 'I have been using the electric contact grill for 2 weeks but it simply will not heat up beyond 200 degrees Fahrenheit. I need it to reach at least 400°F to sear properly. I have tried different power outlets and settings.', time: '1 day ago' },
+      { sender: 'agent', text: 'Hello Grace, I am sorry your grill is not performing as expected. Based on your description this sounds like a thermostat malfunction. Could you try a quick test — preheat for 10 minutes on maximum setting and tell me the highest temperature the indicator shows?', time: '22 hours ago' },
+      { sender: 'customer', text: 'Preheated for 15 minutes on max. Thermometer reads 198°F. The product specs say it should reach 450°F. This unit is definitely defective.', time: '10 hours ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99928', product: 'KitchenHub Pro Contact Grill (1800W)', date: 'May 12, 2026', price: '$134.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1052',
+    customer: { name: 'Thomas Brandt', email: 'tbrandt@gmail.com', phone: '+1 (503) 555-0893', avatar: 'TB' },
+    subject: 'Returned item 18 days ago — still no refund received',
+    messages: [
+      { sender: 'customer', text: 'I returned the knife block set via tracked USPS on May 8th. The tracking shows it was delivered to your warehouse on May 10th — 18 days ago. I still have not received my $200 refund. Return reference is RMA-20291.', time: '5 hours ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99789', product: 'Professional Knife Block Set (15-Piece)', date: 'April 28, 2026', price: '$199.99' },
+    notes: ''
+  },
+  {
+    id: 'KH-1053',
+    customer: { name: 'Mei Lin', email: 'mei.lin.cook@gmail.com', phone: '+1 (626) 555-0254', avatar: 'ML' },
+    subject: 'Cookware set has peeling non-stick coating after 1 month',
+    messages: [
+      { sender: 'customer', text: 'After barely 4 weeks of regular use the non-stick coating on two of my pans from the 5-piece set is already starting to peel and flake. I am extremely concerned about ingesting any of this material — this is a food safety hazard. I want an urgent response.', time: '3 hours ago' },
+      { sender: 'agent', text: 'Hello Mei, I completely understand your concern — peeling non-stick coating is unacceptable and your health comes first. Please stop using those pans immediately. I am initiating an urgent quality review case and will arrange a full replacement set to be shipped via priority shipping within 24 hours. I will also be escalating this to our product quality team for investigation.', time: '2 hours ago' },
+      { sender: 'customer', text: 'Thank you for the quick response. Please ensure the replacement is from a different batch. Also — can you confirm the coating material? I want to check if it is PFOA-free.', time: '1 hour ago' },
+    ],
+    status: 'pending', priority: 'high',
+    order: { id: 'ORD-99855', product: 'KitchenHub Non-Stick Cookware Set (5-Piece)', date: 'April 28, 2026', price: '$175.00' },
+    notes: 'URGENT: Peeling non-stick. Escalate to product quality team. Replacement set arranged.'
+  },
+  {
+    id: 'KH-1054',
+    customer: { name: 'Ahmed Al-Rashid', email: 'ahmed.rashid@live.com', phone: '+1 (469) 555-0765', avatar: 'AR' },
+    subject: 'Gift order never arrived — recipient says nothing delivered',
+    messages: [
+      { sender: 'customer', text: 'I sent a gift order to my mother for Mother\'s Day on May 7th. Tracking showed delivered on May 11th but my mother says nothing was left at her door. The carrier marked it delivered but it was not. This is order ORD-99810.', time: '2 days ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99810', product: 'Deluxe Bamboo Cutting Board Set + Engraving', date: 'May 7, 2026', price: '$58.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1055',
+    customer: { name: 'Lauren Brooks', email: 'lauren.brooks@icloud.com', phone: '+1 (901) 555-0384', avatar: 'LB' },
+    subject: 'Request to change delivery address before shipment',
+    messages: [
+      { sender: 'customer', text: 'I placed an order 30 minutes ago (ORD-99955) but just realized I need to change the delivery address. I am moving to a new apartment this week. Can this be updated before it ships?', time: '35 mins ago' },
+      { sender: 'agent', text: 'Hi Lauren! I can see your order is still in pre-shipment status. I have placed a hold on it and updated the delivery address to the one you provided. You should receive an updated order confirmation email within 15 minutes confirming the change.', time: '20 mins ago' },
+    ],
+    status: 'resolved', priority: 'low',
+    order: { id: 'ORD-99955', product: 'Stainless Steel Spice Rack + 12 Spice Jars', date: 'May 25, 2026', price: '$39.99' },
+    notes: 'Delivery address updated pre-shipment. Resolved.'
+  },
+  {
+    id: 'KH-1056',
+    customer: { name: 'David Okonkwo', email: 'davokon@gmail.com', phone: '+1 (240) 555-0618', avatar: 'DO' },
+    subject: 'Waffle maker sparking and smells burnt — potential fire risk',
+    messages: [
+      { sender: 'customer', text: 'My Belgian Waffle Maker started sparking near the power cord connection and there is a strong burning electrical smell. I turned it off immediately and unplugged it. This feels like a serious fire hazard. What should I do?', time: '1 hour ago' },
+    ],
+    status: 'open', priority: 'high',
+    order: { id: 'ORD-99871', product: 'KitchenHub Belgian Waffle Maker Pro', date: 'May 14, 2026', price: '$72.50' },
+    notes: ''
+  },
+  {
+    id: 'KH-1057',
+    customer: { name: 'Nadia Petrov', email: 'nadia.p@email.com', phone: '+1 (718) 555-0199', avatar: 'NP' },
+    subject: 'Requesting bulk order discount — restaurant purchase',
+    messages: [
+      { sender: 'customer', text: 'I am the purchasing manager for Cafe Verdana (a restaurant chain). We are interested in ordering 50+ units of your commercial chef\'s knife set for our locations. Do you offer bulk or B2B pricing? I need a quote.', time: '4 hours ago' },
+      { sender: 'agent', text: 'Hello Nadia, thank you for your interest in a bulk order! For orders of 50+ units we do have dedicated B2B pricing. I will need to forward this enquiry to our commercial sales team who can prepare a formal quote within 1-2 business days. Could you provide your business email and tax ID so they can process this properly?', time: '3 hours ago' },
+      { sender: 'customer', text: 'Of course. Business email: purchasing@cafeverdana.com | Tax ID: 82-1234567. We are hoping for delivery before June 15th — is that feasible?', time: '2 hours ago' },
+    ],
+    status: 'forwarded', priority: 'low',
+    order: { id: 'ORD-QUOTE-001', product: 'Professional Chef\'s Knife Set (Bulk Enquiry)', date: 'May 25, 2026', price: 'TBD' },
+    notes: 'Forwarded to B2B commercial sales team. June 15 deadline flagged.'
+  },
+  {
+    id: 'KH-1058',
+    customer: { name: 'Isabella Reyes', email: 'izzy.reyes87@gmail.com', phone: '+1 (813) 555-0449', avatar: 'IR' },
+    subject: 'Sous vide circulator display not working — screen blank',
+    messages: [
+      { sender: 'customer', text: 'My Sous Vide Precision Circulator powers on (the heating element works) but the LCD display is completely blank. I cannot see the temperature or set any settings. I have tried resetting it by holding the power button for 10 seconds.', time: '7 hours ago' },
+      { sender: 'agent', text: 'Hi Isabella, I am sorry to hear about the display issue. I have a few troubleshooting steps for you: (1) Try a factory reset by holding both the + and - buttons simultaneously for 5 seconds while the unit is on. (2) If that fails, check if the display has any dim backlight at all — if completely dark vs. dim indicates different issues.', time: '6 hours ago' },
+      { sender: 'customer', text: 'Tried factory reset — no change. The display is completely black, no backlight whatsoever. The unit still heats the water but I cannot control anything.', time: '4 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99862', product: 'KitchenHub Sous Vide Precision Circulator 1200W', date: 'May 8, 2026', price: '$128.00' },
+    notes: ''
+  },
+  {
+    id: 'KH-1059',
+    customer: { name: 'James Whitfield', email: 'jwhitfield@gmail.com', phone: '+1 (615) 555-0837', avatar: 'JW' },
+    subject: 'Five-star review left incorrectly — want it removed or edited',
+    messages: [
+      { sender: 'customer', text: 'I accidentally left a 5-star review for a product that I actually wanted to give 2 stars. The product was the cast iron skillet and it arrived damaged. I clicked the wrong star rating. Can you help me edit or remove that review?', time: '2 days ago' },
+    ],
+    status: 'resolved', priority: 'low',
+    order: { id: 'ORD-99744', product: 'Pre-Seasoned Cast Iron Skillet (10")', date: 'May 2, 2026', price: '$49.99' },
+    notes: 'Directed customer to review portal settings to edit. Separate damage claim opened as KH-1059b.'
+  },
+  {
+    id: 'KH-1060',
+    customer: { name: 'Chioma Adeyemi', email: 'chioma.adeyemi@gmail.com', phone: '+1 (646) 555-0221', avatar: 'CA' },
+    subject: 'Received used/returned item — packaging was already opened',
+    messages: [
+      { sender: 'customer', text: 'The stand mixer I ordered clearly arrived in previously-opened packaging. The plastic wrap had been reapplied poorly, there were fingerprints on the body, and there was residue inside the bowl. I paid full price for what appears to be a used return.', time: '1 day ago' },
+      { sender: 'agent', text: 'Chioma, I sincerely apologize for this — receiving what appears to be a used item at full price is completely unacceptable. You should always receive a brand new, factory-sealed product. I am arranging an urgent replacement from a sealed stock batch with free priority shipping, and I will also apply a $30 credit to your account as an apology for this experience.', time: '20 hours ago' },
+      { sender: 'customer', text: 'I appreciate the credit and the replacement. But I need a prepaid label to send this one back — I do not want to pay return shipping for something that was not my fault.', time: '18 hours ago' },
+    ],
+    status: 'pending', priority: 'high',
+    order: { id: 'ORD-99918', product: 'KitchenHub Professional Stand Mixer 5.5 Qt', date: 'May 19, 2026', price: '$289.00' },
+    notes: 'Prepaid return label being arranged. $30 account credit applied. Replacement in process.'
+  },
+  {
+    id: 'KH-1061',
+    customer: { name: 'Marcus Webb', email: 'marcus.webb@yahoo.com', phone: '+1 (303) 555-0565', avatar: 'MW' },
+    subject: 'Coffee grinder making inconsistent grind size',
+    messages: [
+      { sender: 'customer', text: 'The burr coffee grinder I purchased produces wildly inconsistent grind sizes even on the same setting. I am getting both powder-fine and large chunks in the same batch. For a $95 burr grinder this is unacceptable — a blade grinder would do better.', time: '9 hours ago' },
+    ],
+    status: 'open', priority: 'medium',
+    order: { id: 'ORD-99943', product: 'KitchenHub Conical Burr Coffee Grinder (40mm)', date: 'May 20, 2026', price: '$94.99' },
+    notes: ''
+  },
+];
+
+const TEMPLATES = [
+  { name: 'Acknowledge', text: 'Hello! Thank you for contacting KitchenHub Support. I have received your request and am looking into this right now. Please allow me a moment.' },
+  { name: 'Apology', text: 'I sincerely apologize for the inconvenience this has caused. This is not the standard of service we aim to provide, and I want to make this right for you immediately.' },
+  { name: 'Shipping Delay', text: 'We sincerely apologize for the shipping delay. There is currently a higher-than-usual volume at our carrier hubs. I have flagged your order for priority handling and you should receive an update within 24 hours.' },
+  { name: 'Replacement Approved', text: 'Great news — I have approved a free replacement for your item. A brand new unit will be shipped to your address on file within 24 hours via priority shipping. You will receive a tracking link via email.' },
+  { name: 'Refund Initiated', text: 'I have initiated a full refund back to your original payment method. Please allow 3-5 business days for your bank to process the credit. You will also receive a refund confirmation email.' },
+  { name: 'Safety Escalation', text: 'Your safety is our absolute top priority. Please stop using this product immediately. I am escalating this to our product quality and safety team urgently and will arrange an immediate replacement at no cost to you.' },
+  { name: 'Troubleshoot Request', text: 'Thank you for the details. Before arranging a replacement, I would like to try one quick troubleshooting step with you — could you please try [describe step]? This will help me identify the exact issue.' },
+  { name: 'Prepaid Return Label', text: 'I have arranged a prepaid return shipping label which will be emailed to you within the next 30 minutes. Simply print it, attach it to the original box, and drop it off at any USPS location. No cost to you.' },
+];
+
+
+// ── WebRTC answer-side hook (agent portal) ──────────────────────────────
+// Activated when the admin sends a WebRTC offer via the server relay.
+// Signaling path:
+//   Admin ──offer──► server ──► main.cjs IPC ──► here (renderer)
+//   Admin ◄─answer── server ◄── main.cjs IPC ◄── here (renderer)
+const ICE_SERVERS = (() => {
+  const DEFAULT = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Production: add TURN servers for global connectivity
+    // { urls: 'turn:turn.example.com:3478?transport=udp', username: 'user', credential: 'pass' },
+  ];
+  try {
+    const raw = import.meta.env.VITE_ICE_SERVERS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[WebRTC] Using custom ICE servers from env');
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('[WebRTC] Failed to parse VITE_ICE_SERVERS:', err.message);
+  }
+  return DEFAULT;
+})();
+
+async function captureAgentScreenStream() {
+  const constraints = {
+    video: { frameRate: { ideal: 15, max: 30 }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  };
+
+  // Try Electron desktop capturer first
+  if (window.electronAPI?.getDesktopSourceId) {
+    try {
+      const sourceId = await window.electronAPI.getDesktopSourceId();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId,
+            maxFrameRate: 30,
+            minFrameRate: 15,
+            maxWidth: 1280,
+            maxHeight: 720,
+          }
+        }
+      });
+      console.log('[WebRTC] Screen stream captured via Electron desktop capturer');
+      return stream;
+    } catch (err) {
+      console.warn('[WebRTC] Electron desktop capture failed:', err.message);
+    }
+  }
+
+  // Fallback to getDisplayMedia
+  if (navigator.mediaDevices?.getDisplayMedia) {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+      console.log('[WebRTC] Screen stream captured via getDisplayMedia');
+      return stream;
+    } catch (err) {
+      console.warn('[WebRTC] getDisplayMedia failed:', err.message);
+    }
+  }
+
+  throw new Error('Screen capture is not available in this Electron environment');
+}
+
+function useWebRTCAnswerer() {
+  const pcRef = useRef(null);
+  const streamRef = useRef(null);
+  const pendingIceCandidatesRef = useRef([]);
+
+  const teardown = useCallback(() => {
+    pendingIceCandidatesRef.current = [];
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!window.electronAPI?.onWebRTCSignalIn) return;
+
+    if (window.electronAPI?.notifyRendererReady) {
+      window.electronAPI.notifyRendererReady();
+      console.log('[WebRTC] Renderer ready signal sent to main');
+    }
+
+    window.electronAPI.onWebRTCSignalIn(async (signal) => {
+      console.log('[WebRTC] Signal received from main:', signal?.type);
+      if (signal.type === 'webrtc-ice-candidate' && signal.candidate) {
+        if (pcRef.current) {
+          try {
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } catch (err) {
+            console.warn('[WebRTC] ICE candidate error:', err.message);
+          }
+        } else {
+          pendingIceCandidatesRef.current.push(signal.candidate);
+          console.log('[WebRTC] Queued remote ICE candidate until peer connection is ready');
+        }
+        return;
+      }
+
+      // ── Incoming offer from admin ────────────────────────────────
+      if (signal.type === 'webrtc-offer') {
+        console.log('[WebRTC] Offer received — capturing desktop stream');
+        try {
+          const stream = await captureAgentScreenStream();
+          streamRef.current = stream;
+
+          const pc = new RTCPeerConnection({
+            iceServers: ICE_SERVERS,
+            bundlePolicy: 'max-bundle',
+            iceCandidatePoolSize: 1,
+            iceTransportPolicy: 'all',
+            rtcpMuxPolicy: 'require',
+            sdpSemantics: 'unified-plan',
+          });
+          pcRef.current = pc;
+
+          pc.onicecandidateerror = (err) => {
+            console.warn('[WebRTC] ICE candidate error (agent):', err);
+          };
+          pc.onicegatheringstatechange = () => {
+            console.log('[WebRTC] ICE gathering state (agent):', pc.iceGatheringState);
+          };
+
+          // Add all screen tracks to the connection
+          stream.getTracks().forEach(track => pc.addTrack(track, stream));
+
+          // Relay ICE candidates back to admin via IPC → WS → server → admin
+          pc.onicecandidate = (e) => {
+            if (e.candidate && window.electronAPI?.sendWebRTCSignal) {
+              window.electronAPI.sendWebRTCSignal({
+                type: 'webrtc-ice-candidate',
+                candidate: e.candidate,
+                target: 'admin',
+              });
+            }
+          };
+
+          // Accept a remote-control data channel from admin and forward messages to main for native input
+          pc.ondatachannel = (evt) => {
+            try {
+              const ch = evt.channel;
+              console.log('[WebRTC] Data channel received:', ch.label);
+              ch.binaryType = 'arraybuffer';
+
+              ch.onmessage = (ev) => {
+                try {
+                  if (ev.data instanceof ArrayBuffer) {
+                    const dv = new DataView(ev.data);
+                    const evtId = dv.getUint8(0);
+                    let payload = null;
+
+                    switch (evtId) {
+                      case 1:
+                        payload = { type: 'mouse_move', x: dv.getUint16(1, true), y: dv.getUint16(3, true) };
+                        break;
+                      case 2:
+                        payload = { type: 'mouse_down', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      case 3:
+                        payload = { type: 'mouse_up', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      case 4:
+                        payload = { type: 'mouse_wheel', deltaY: dv.getInt16(1, true), x: dv.getUint16(3, true), y: dv.getUint16(5, true) };
+                        break;
+                      case 5:
+                        payload = { type: 'click', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      default:
+                        return;
+                    }
+
+                    if (window.electronAPI?.remoteInput) {
+                      window.electronAPI.remoteInput(payload);
+                    }
+                    return;
+                  }
+
+                  const payload = JSON.parse(ev.data);
+                  if (payload.type === 'ping' && ch.readyState === 'open') {
+                    ch.send(JSON.stringify({ type: 'pong', timestamp: payload.timestamp }));
+                    return;
+                  }
+
+                  if (window.electronAPI?.remoteInput) {
+                    window.electronAPI.remoteInput(payload);
+                  }
+                } catch (err) {
+                  console.warn('[RemoteControl] Bad datachannel message:', err.message);
+                }
+              };
+
+              ch.onopen = () => console.log('[WebRTC] Remote-control channel open (agent)');
+              ch.onclose = () => console.log('[WebRTC] Remote-control channel closed (agent)');
+            } catch (err) {
+              console.warn('[WebRTC] ondatachannel handler failed:', err.message);
+            }
+          };
+
+          pc.onconnectionstatechange = () => {
+            console.log('[WebRTC] State:', pc.connectionState);
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+              teardown();
+            }
+          };
+
+          pc.oniceconnectionstatechange = () => {
+            console.log('[WebRTC] ICE connection state (agent):', pc.iceConnectionState);
+            if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+              teardown();
+            }
+          };
+
+          // Set remote (admin's offer) and generate answer
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          if (pendingIceCandidatesRef.current.length) {
+            const queued = pendingIceCandidatesRef.current.splice(0);
+            for (const candidate of queued) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              } catch (err) {
+                console.warn('[WebRTC] Queued ICE candidate error:', err.message);
+              }
+            }
+          }
+
+          // Send answer back: renderer → IPC → main.cjs → WS → server → admin
+          if (window.electronAPI?.sendWebRTCSignal) {
+            window.electronAPI.sendWebRTCSignal({ type: 'webrtc-answer', sdp: answer });
+          }
+          console.log('[WebRTC] Answer sent — live stream established');
+
+          // Handle agent closing the browser share dialog
+          stream.getVideoTracks()[0].onended = () => {
+            console.log('[WebRTC] Agent ended screen share');
+            teardown();
+          };
+        } catch (err) {
+          console.error('[WebRTC] getDisplayMedia failed:', err.message);
+        }
+      }
+    });
+
+    return () => teardown();
+  }, [teardown]);
+
+  return { teardown };
+}
+
+export default function Dashboard({ identity, onLogout, onResetConsent }) {
+  const [tickets, setTickets] = useState(INITIAL_TICKETS);
+  const [selectedTicketId, setSelectedTicketId] = useState(INITIAL_TICKETS[0].id);
+  const [activeTab, setActiveTab] = useState('all'); // all, inbox, resolved, forwarded
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [replyText, setReplyText] = useState('');
+  const [escNotes, setEscNotes] = useState('');
+  const [showEscModal, setShowEscModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+
+  // Centralized notification helper with unique IDs and 5s auto-dismiss
+  const addNotification = (title, msg, type = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9) + '-' + Date.now();
+    setNotifications(prev => [{ id, title, msg, type }, ...prev]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  // Connection & Remote takeover states
+  const [isConnected, setIsConnected] = useState(true);
+  const [remoteControl, setRemoteControl] = useState({ active: false, adminName: '' });
+  const [remoteCursor, setRemoteCursor] = useState({ x: 0, y: 0, visible: false });
+  const [adminMessages, setAdminMessages] = useState([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessageText, setChatMessageText] = useState('');
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+
+  const currentTicket = tickets.find(t => t.id === selectedTicketId) || tickets[0];
+  const chatEndRef = useRef(null);
+
+  // ── WebRTC answer-side — tears down when remote control stops ──────
+  const { teardown: teardownWebRTC } = useWebRTCAnswerer();
+
+  // Auto-scroll chat to bottom when message is added
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [currentTicket?.messages]);
+
+  // 1. Connection status monitoring
+  useEffect(() => {
+    if (window.electronAPI) {
+      if (window.electronAPI.getConnectionStatus) {
+        window.electronAPI.getConnectionStatus().then(setIsConnected);
+      }
+      if (window.electronAPI.onConnectionStatus) {
+        window.electronAPI.onConnectionStatus(setIsConnected);
+      }
+    }
+  }, []);
+
+  // 2. Listen to IPC screenshot events (for developer validation)
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onScreenshotNotification) {
+      window.electronAPI.onScreenshotNotification((data) => {
+        // No toast notification to prevent spamming the agent screen
+      });
+    }
+  }, []);
+
+  // 3. Listen to Admin Messages (Two-way chat)
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onAdminMessage) {
+      window.electronAPI.onAdminMessage((msg) => {
+        setAdminMessages(prev => [...prev, { sender: 'admin', text: msg.text, time: msg.timestamp || new Date().toLocaleTimeString() }]);
+        
+        // Increment unread count if chat is closed
+        setUnreadChatCount(prev => isChatOpen ? 0 : prev + 1);
+
+        // Toast notification
+        addNotification('Message from Admin', msg.text, 'urgent');
+      });
+    }
+  }, [isChatOpen]);
+
+  // Reset unread count when chat opens
+  useEffect(() => {
+    if (isChatOpen) {
+      setUnreadChatCount(0);
+    }
+  }, [isChatOpen]);
+
+  // 4. Listen to Ticket Actions (Approved/Declined by Admin)
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onTicketActioned) {
+      window.electronAPI.onTicketActioned((actionedTicket) => {
+        setTickets(prev => prev.map(t => {
+          if (t.id === actionedTicket.id) {
+            const stLabel = actionedTicket.adminStatus === 'approved' ? 'APPROVED' : 'DECLINED';
+            const actionMsg = {
+              sender: 'agent',
+              text: `🚨 [SYSTEM]: Ticket was ${stLabel} by Administrator Arthur Dent.\nNote: "${actionedTicket.adminNote || 'No notes left'}"`,
+              time: 'Just now'
+            };
+            return {
+              ...t,
+              status: 'resolved',
+              messages: [...t.messages, actionMsg]
+            };
+          }
+          return t;
+        }));
+
+        addNotification(
+          `Ticket ${actionedTicket.id} Actioned`,
+          `Admin status: ${actionedTicket.adminStatus.toUpperCase()}`,
+          actionedTicket.adminStatus === 'approved' ? 'success' : 'urgent'
+        );
+      });
+    }
+  }, []);
+
+  // 5. Listen to Remote Takeover status
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onRemoteControlStatus) {
+      window.electronAPI.onRemoteControlStatus((status) => {
+        setRemoteControl(status);
+        if (!status.active) {
+          teardownWebRTC();
+        }
+        addNotification(
+          status.active ? 'Backstage Session Active' : 'Backstage Session Ended',
+          status.active ? `Admin ${status.adminName} is connected backstage` : 'Backstage session ended.',
+          status.active ? 'urgent' : 'success'
+        );
+      });
+    }
+  }, [teardownWebRTC]);
+
+  // 6. Listen to Remote Clicks (renderer only displays visual click ripple since main process injects native OS events)
+  useEffect(() => {
+    if (window.electronAPI && window.electronAPI.onRemoteClick) {
+      window.electronAPI.onRemoteClick(({ x, y }) => {
+        console.log("Remote click ripple at", x, y);
+        
+        // Show cursor click ripple
+        setRemoteCursor({ x, y, visible: true });
+        setTimeout(() => setRemoteCursor(prev => ({ ...prev, visible: false })), 1000);
+      });
+    }
+  }, []);
+
+  const handleSendChatMessage = () => {
+    if (!chatMessageText.trim()) return;
+    const text = chatMessageText.trim();
+    if (window.electronAPI && window.electronAPI.sendAgentMessage) {
+      window.electronAPI.sendAgentMessage(text);
+    }
+    setAdminMessages(prev => [...prev, { sender: 'agent', text, time: new Date().toLocaleTimeString() }]);
+    setChatMessageText('');
+  };
+
+
+
+  // Handle reply submission
+  const handleSendReply = () => {
+    if (!replyText.trim()) return;
+
+    setTickets(prev => prev.map(t => {
+      if (t.id === currentTicket.id) {
+        return {
+          ...t,
+          status: 'pending', // Move status to pending when agent replies
+          messages: [
+            ...t.messages,
+            { sender: 'agent', text: replyText, time: 'Just now' }
+          ]
+        };
+      }
+      return t;
+    }));
+    setReplyText('');
+  };
+
+  // Handle Quick Template insert
+  const handleInsertTemplate = (text) => {
+    setReplyText(prev => prev + (prev ? ' ' : '') + text);
+  };
+
+  // Escalate / Forward ticket to Admin
+  const handleEscalate = async () => {
+    const notesText = escNotes || 'Forwarded to Admin.';
+    const ticketPayload = {
+      id: currentTicket.id,
+      subject: currentTicket.subject,
+      customer: currentTicket.customer.name,
+      email: currentTicket.customer.email,
+      phone: currentTicket.customer.phone,
+      order: currentTicket.order,
+      priority: currentTicket.priority,
+      agentNotes: notesText,
+      messages: currentTicket.messages
+    };
+
+    if (window.electronAPI && window.electronAPI.sendTicket) {
+      try {
+        await window.electronAPI.sendTicket(ticketPayload);
+      } catch (err) {
+        console.error("Failed to escalate ticket to server:", err);
+      }
+    }
+
+    setTickets(prev => prev.map(t => {
+      if (t.id === currentTicket.id) {
+        return {
+          ...t,
+          status: 'forwarded',
+          notes: notesText
+        };
+      }
+      return t;
+    }));
+    setEscNotes('');
+    setShowEscModal(false);
+
+    addNotification('Ticket Forwarded', `${currentTicket.id} escalated to Administrator.`, 'success');
+  };
+
+  // Clear single toast notification
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  // Filtered ticket calculations
+  const filteredTickets = tickets.filter(t => {
+    // Search filter
+    const matchesSearch = 
+      t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.subject.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Sidebar tab filter
+    let matchesTab = true;
+    if (activeTab === 'inbox') matchesTab = t.status === 'open' || t.status === 'pending';
+    else if (activeTab === 'resolved') matchesTab = t.status === 'resolved';
+    else if (activeTab === 'forwarded') matchesTab = t.status === 'forwarded';
+
+    // Status dropdown filter
+    let matchesStatus = true;
+    if (statusFilter !== 'all') {
+      matchesStatus = t.status === statusFilter;
+    }
+
+    return matchesSearch && matchesTab && matchesStatus;
+  });
+
+  // Calculate ticket counts
+  const counts = {
+    open: tickets.filter(t => t.status === 'open' || t.status === 'pending').length,
+    resolved: tickets.filter(t => t.status === 'resolved').length,
+    forwarded: tickets.filter(t => t.status === 'forwarded').length,
+    all: tickets.length
+  };
+
+  return (
+    <div className={`flex h-screen bg-gray-50 text-gray-900 font-sans overflow-hidden transition-all ${!isConnected || remoteControl.active ? 'pt-9' : ''}`}>
+      
+      {/* Connection Offline Bar */}
+      {!isConnected && (
+        <div className="bg-red-600 text-white text-[11px] font-bold text-center py-1.5 px-4 flex items-center justify-center space-x-2 z-[9999] absolute top-0 left-0 right-0 animate-pulse border-b border-red-700">
+          <span>⚠️ DISCONNECTED FROM KITCHENHUB RELAY SERVER. Trying to reconnect...</span>
+        </div>
+      )}
+
+      {/* Remote Takeover Control Warning Bar */}
+      {remoteControl.active && isConnected && (
+        <div className="bg-indigo-700 text-white text-[11px] font-bold text-center py-1.5 px-4 flex items-center justify-center space-x-3 z-[9998] absolute top-0 left-0 right-0 shadow-lg border-b border-indigo-600">
+          <div className="flex items-center space-x-2">
+            <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping mr-1" />
+            <span>⚠️ ACTIVE BACKSTAGE SESSION — Admin {remoteControl.adminName || 'Arthur Dent'} is connected backstage</span>
+          </div>
+          <button 
+            onClick={() => {
+              if (window.electronAPI && window.electronAPI.stopRemoteControl) {
+                window.electronAPI.stopRemoteControl();
+              }
+            }}
+            className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2.5 py-0.5 rounded transition-colors cursor-pointer"
+          >
+            Disconnect
+          </button>
+        </div>
+      )}
+
+      {/* Remote Click Ripple Pointer */}
+      {remoteCursor.visible && (
+        <div 
+          style={{ 
+            position: 'absolute', 
+            left: remoteCursor.x - 20, 
+            top: remoteCursor.y - 20, 
+            width: 40, 
+            height: 40, 
+            pointerEvents: 'none', 
+            zIndex: 99999 
+          }}
+        >
+          <div className="w-3.5 h-3.5 bg-red-600 rounded-full border-2 border-white shadow absolute left-[13px] top-[13px]" />
+          <div className="w-10 h-10 border-4 border-red-500 rounded-full absolute animate-ping opacity-75" />
+        </div>
+      )}
+      
+      {/* Toast Notification Container */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col space-y-2 max-w-sm w-full">
+        {notifications.length > 1 && (
+          <button 
+            onClick={() => setNotifications([])}
+            className="self-end px-3 py-1 bg-gray-900/90 hover:bg-gray-800 text-white border border-gray-700 rounded-full text-[11px] font-bold shadow-lg transition-colors flex items-center space-x-1 cursor-pointer mb-2 animate-in fade-in zoom-in duration-200"
+          >
+            <span>Clear All ({notifications.length})</span>
+          </button>
+        )}
+        {notifications.map(notif => (
+          <div 
+            key={notif.id} 
+            className={`p-4 rounded-lg shadow-xl flex items-start space-x-3 border animate-bounce ${
+              notif.type === 'urgent' 
+                ? 'bg-red-50 border-red-200 text-red-800' 
+                : notif.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-brand-50 border-brand-200 text-brand-800'
+            }`}
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold text-sm">{notif.title}</p>
+              <p className="text-xs mt-1">{notif.msg}</p>
+            </div>
+            <button 
+              onClick={() => removeNotification(notif.id)}
+              className="text-gray-400 hover:text-gray-600 font-bold"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Main Sidebar */}
+      <div className="w-64 bg-gray-900 text-white flex flex-col flex-shrink-0">
+        <div className="p-5 border-b border-gray-800 flex items-center space-x-2">
+          <Sparkles className="w-6 h-6 text-brand-400" />
+          <span className="font-bold text-lg tracking-wider">KitchenHub</span>
+          <span className="text-xs bg-brand-600 text-white px-2 py-0.5 rounded-full font-semibold">Agent</span>
+        </div>
+
+        {/* Navigation Categories */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          <button 
+            onClick={() => setActiveTab('all')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              activeTab === 'all' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <List className="w-4 h-4" />
+              <span>All Tickets</span>
+            </div>
+            <span className="bg-gray-800 text-xs px-2 py-0.5 rounded-full text-gray-300">{counts.all}</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('inbox')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              activeTab === 'inbox' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Inbox className="w-4 h-4" />
+              <span>Active Inbox</span>
+            </div>
+            <span className="bg-gray-800 text-xs px-2 py-0.5 rounded-full text-gray-300">{counts.open}</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('resolved')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              activeTab === 'resolved' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-4 h-4" />
+              <span>Resolved</span>
+            </div>
+            <span className="bg-gray-800 text-xs px-2 py-0.5 rounded-full text-gray-300">{counts.resolved}</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('forwarded')}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+              activeTab === 'forwarded' ? 'bg-brand-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <ArrowUpRight className="w-4 h-4" />
+              <span>Forwarded</span>
+            </div>
+            <span className="bg-gray-800 text-xs px-2 py-0.5 rounded-full text-gray-300">{counts.forwarded}</span>
+          </button>
+        </nav>
+
+        {/* Agent Profile & Sign Out */}
+        <div className="p-4 border-t border-gray-800 bg-gray-950/90 flex flex-col space-y-3">
+          {identity && (
+            <div className="flex items-center space-x-3 text-left">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 text-white font-bold text-xs flex items-center justify-center shadow-md flex-shrink-0">
+                {identity.name ? identity.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AG'}
+              </div>
+              <div className="flex-1 min-w-0 font-sans">
+                <p className="text-xs font-bold text-gray-200 truncate">{identity.name || 'Agent Name'}</p>
+                <p className="text-[10px] text-gray-500 font-mono truncate">{identity.agentId || 'BSK-AG-XXXXX'}</p>
+                <p className="text-[9px] text-indigo-400 font-medium truncate mt-0.5">{identity.shift || '9:00 AM – 5:00 PM'}</p>
+              </div>
+            </div>
+          )}
+          
+          <div className="flex flex-col space-y-1.5">
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center justify-center space-x-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-250 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Sign Out Shift</span>
+            </button>
+
+            <button
+              onClick={onResetConsent}
+              className="w-full flex items-center justify-center space-x-2 px-3 py-1 text-gray-500 hover:text-red-400 text-[10px] transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>Reset Consent & Exit</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Ticket List Sub-Column */}
+      <div className="w-80 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+        {/* Search */}
+        <div className="p-4 border-b border-gray-100 space-y-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search ID, customer, content..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          
+          {/* Internal filter dropdown */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+          >
+            <option value="all">Filter: All Statuses</option>
+            <option value="open">Status: Open</option>
+            <option value="pending">Status: Pending</option>
+            <option value="resolved">Status: Resolved</option>
+            <option value="forwarded">Status: Forwarded</option>
+          </select>
+        </div>
+
+        {/* Tickets Grid */}
+        <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+          {filteredTickets.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-sm">
+              No tickets matched criteria.
+            </div>
+          ) : (
+            filteredTickets.map(ticket => (
+              <div
+                key={ticket.id}
+                onClick={() => setSelectedTicketId(ticket.id)}
+                className={`p-4 cursor-pointer transition-colors relative ${
+                  selectedTicketId === ticket.id ? 'bg-brand-50/50 border-l-4 border-brand-600' : 'hover:bg-gray-50 border-l-4 border-transparent'
+                }`}
+              >
+                <div className="flex justify-between items-center mb-1">
+                  <span className="font-mono text-xs font-bold text-gray-500">{ticket.id}</span>
+                  <div className="flex items-center space-x-1">
+                    {/* Status Badge */}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                      ticket.status === 'open' ? 'bg-red-100 text-red-800' :
+                      ticket.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      ticket.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                      'bg-purple-100 text-purple-800'
+                    }`}>
+                      {ticket.status}
+                    </span>
+                    {/* Priority Badge */}
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                      ticket.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                      ticket.priority === 'medium' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {ticket.priority}
+                    </span>
+                  </div>
+                </div>
+                <h4 className="font-semibold text-sm text-gray-800 truncate">{ticket.customer.name}</h4>
+                <p className="text-xs text-gray-500 font-medium truncate mt-0.5">{ticket.subject}</p>
+                <p className="text-[10px] text-gray-400 mt-2 text-right">
+                  {ticket.messages[ticket.messages.length - 1]?.time || 'Just now'}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Conversation Area */}
+      <div className="flex-1 bg-white flex flex-col min-w-0">
+        {/* Top Header */}
+        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
+          <div>
+            <h2 className="text-base font-bold text-gray-800 flex items-center space-x-2">
+              <span>{currentTicket.subject}</span>
+              <span className="font-mono text-xs font-normal text-gray-400">({currentTicket.id})</span>
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Assigned to: <span className="font-medium text-gray-700">You (Agent)</span>
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setShowEscModal(true)}
+              disabled={currentTicket.status === 'forwarded'}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors ${
+                currentTicket.status === 'forwarded'
+                  ? 'bg-purple-50 border-purple-200 text-purple-400 cursor-not-allowed'
+                  : 'border-purple-200 text-purple-700 hover:bg-purple-50'
+              }`}
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>{currentTicket.status === 'forwarded' ? 'Escalated' : 'Forward to Admin'}</span>
+            </button>
+
+            {currentTicket.status !== 'resolved' && (
+              <button
+                onClick={() => {
+                  setTickets(prev => prev.map(t => t.id === currentTicket.id ? { ...t, status: 'resolved' } : t));
+                  addNotification('Status Update', `Ticket ${currentTicket.id} marked as Resolved.`, 'success');
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium shadow-sm transition-colors"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Mark Resolved</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Message Thread */}
+        <div className="flex-1 p-6 overflow-y-auto bg-gray-50/30 space-y-4">
+          {currentTicket.messages.map((msg, index) => {
+            const isAgent = msg.sender === 'agent';
+            return (
+              <div 
+                key={index} 
+                className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-xl rounded-lg p-4 shadow-sm border ${
+                  isAgent 
+                    ? 'bg-brand-600 border-brand-700 text-white rounded-tr-none' 
+                    : 'bg-white border-gray-100 text-gray-800 rounded-tl-none'
+                }`}>
+                  <div className="flex justify-between items-center mb-1 text-[10px] opacity-75 font-semibold">
+                    <span>{isAgent ? 'KitchenHub Agent' : currentTicket.customer.name}</span>
+                    <span>{msg.time}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                </div>
+              </div>
+            );
+          })}
+          {currentTicket.status === 'forwarded' && (
+            <div className="flex justify-center p-3 bg-purple-50 border border-purple-100 rounded-lg text-purple-800 text-xs font-medium space-x-2 max-w-lg mx-auto">
+              <Info className="w-4 h-4 flex-shrink-0" />
+              <div>
+                <p className="font-bold">Ticket Escalated to Administrator</p>
+                <p className="mt-0.5 text-purple-700 italic">Notes: "{currentTicket.notes}"</p>
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+
+        {/* Quick Response Templates Row */}
+        <div className="px-6 py-2 bg-gray-50 border-t border-b border-gray-200/80 flex items-center space-x-2 overflow-x-auto whitespace-nowrap scrollbar-thin">
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center mr-1">
+            <Sparkles className="w-3 h-3 mr-1 text-brand-500" />
+            Templates:
+          </span>
+          {TEMPLATES.map((tmpl, idx) => (
+            <button
+              key={idx}
+              onClick={() => handleInsertTemplate(tmpl.text)}
+              className="px-2.5 py-1 bg-white hover:bg-gray-100 border border-gray-200 rounded-full text-xs text-gray-600 transition-colors"
+            >
+              {tmpl.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Input Panel */}
+        <div className="p-4 bg-white border-t border-gray-200">
+          <div className="relative border border-gray-200 rounded-lg focus-within:ring-2 focus-within:ring-brand-500">
+            <textarea
+              rows={3}
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                  handleSendReply();
+                }
+              }}
+              placeholder="Type your response... (Ctrl + Enter to send)"
+              className="w-full p-3 text-sm focus:outline-none rounded-lg resize-none border-0"
+            />
+            <div className="flex justify-end items-center p-2 bg-gray-50 border-t border-gray-100 rounded-b-lg">
+              <button
+                onClick={handleSendReply}
+                className="flex items-center space-x-1.5 px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+              >
+                <Send className="w-3 h-3" />
+                <span>Send Reply</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Profile Side panel */}
+      <div className="w-72 bg-white border-l border-gray-200 flex flex-col flex-shrink-0 overflow-y-auto">
+        <div className="p-6 border-b border-gray-100 text-center">
+          <div className="w-16 h-16 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3 shadow-inner">
+            {currentTicket.customer.avatar}
+          </div>
+          <h3 className="font-bold text-base text-gray-800">{currentTicket.customer.name}</h3>
+          <p className="text-xs text-gray-500">{currentTicket.customer.email}</p>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Customer Details */}
+          <div>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Customer Info</h4>
+            <div className="space-y-2 text-xs text-gray-600">
+              <div className="flex items-center space-x-2">
+                <Phone className="w-3.5 h-3.5 text-gray-400" />
+                <span>{currentTicket.customer.phone}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <User className="w-3.5 h-3.5 text-gray-400" />
+                <span>Role: General Buyer</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Order Details */}
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Order Details</h4>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Order ID:</span>
+                <span className="font-mono font-semibold text-gray-700">{currentTicket.order.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Product:</span>
+                <span className="font-medium text-gray-700 text-right max-w-[150px] truncate" title={currentTicket.order.product}>
+                  {currentTicket.order.product}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Date:</span>
+                <span className="font-medium text-gray-700">{currentTicket.order.date}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Amount:</span>
+                <span className="font-bold text-brand-600">{currentTicket.order.price}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions Panel */}
+          <div>
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">CRM Quick Actions</h4>
+            <div className="space-y-1.5">
+              <button 
+                onClick={() => {
+                  addNotification('CRM Operation', `Initiated refund for ${currentTicket.order.id}.`, 'success');
+                }}
+                className="w-full flex items-center space-x-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium text-left transition-colors"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-green-500" />
+                <span>Initiate Refund</span>
+              </button>
+
+              <button 
+                onClick={() => {
+                  addNotification('CRM Operation', `Created replacement order for ${currentTicket.order.product}.`, 'success');
+                }}
+                className="w-full flex items-center space-x-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium text-left transition-colors"
+              >
+                <Package className="w-3.5 h-3.5 text-blue-500" />
+                <span>Request Replacement</span>
+              </button>
+
+              <button 
+                onClick={() => {
+                  addNotification('CRM Operation', `Logged outbound support call to ${currentTicket.customer.phone}.`, 'info');
+                }}
+                className="w-full flex items-center space-x-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-lg text-xs font-medium text-left transition-colors"
+              >
+                <Phone className="w-3.5 h-3.5 text-yellow-500" />
+                <span>Log Phone Call</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Escalation/Forward Modal */}
+      {showEscModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-100">
+            <h3 className="text-base font-bold text-gray-800 flex items-center space-x-2 mb-3">
+              <ShieldAlert className="w-5 h-5 text-purple-600" />
+              <span>Forward to Administrator</span>
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              This will assign ticket <span className="font-mono text-gray-700 font-semibold">{currentTicket.id}</span> to the Admin review panel. Please add notes explaining why this ticket requires escalation.
+            </p>
+            <textarea
+              rows={3}
+              value={escNotes}
+              onChange={(e) => setEscNotes(e.target.value)}
+              placeholder="E.g., Customer is requesting a full refund outside our 30-day window, but mixing bowl broke under warranty."
+              className="w-full p-3 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4"
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => { setShowEscModal(false); setEscNotes(''); }}
+                className="px-4 py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEscalate}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold shadow-md"
+              >
+                Confirm Escalation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Admin Chat Drawer */}
+      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end">
+        {isChatOpen ? (
+          <div className="w-80 h-96 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-5 text-left">
+            {/* Header */}
+            <div className="px-4 py-3 bg-gray-900 text-white flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="font-bold text-xs tracking-wider uppercase">Admin Channel</span>
+              </div>
+              <button 
+                onClick={() => setIsChatOpen(false)}
+                className="text-gray-400 hover:text-white font-bold text-sm"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 p-3 overflow-y-auto space-y-2 bg-gray-50/50 flex flex-col">
+              {adminMessages.length === 0 ? (
+                <div className="my-auto flex flex-col items-center justify-center text-center text-gray-400 p-4">
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-2 mx-auto">
+                    <MessageSquare className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <p className="text-xs font-semibold text-gray-600">No direct messages yet.</p>
+                  <p className="text-[10px] mt-1 text-gray-400">Communication with administrator is secured and active.</p>
+                </div>
+              ) : (
+                adminMessages.map((m, idx) => {
+                  const isAgent = m.sender === 'agent';
+                  return (
+                    <div key={idx} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[85%] rounded-lg p-2.5 text-xs shadow-sm border ${
+                        isAgent 
+                          ? 'bg-brand-600 border-brand-700 text-white rounded-tr-none' 
+                          : 'bg-white border-gray-200 text-gray-800 rounded-tl-none'
+                      }`}>
+                        <div className="flex justify-between items-center mb-1 text-[9px] opacity-75 font-semibold gap-2">
+                          <span>{isAgent ? 'You (Agent)' : 'Admin'}</span>
+                          <span>{m.time}</span>
+                        </div>
+                        <p className="leading-relaxed whitespace-pre-wrap text-left">{m.text}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-2 border-t border-gray-100 bg-white flex items-center space-x-2">
+              <input
+                type="text"
+                value={chatMessageText}
+                onChange={e => setChatMessageText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendChatMessage()}
+                placeholder="Message administrator..."
+                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-brand-500 bg-gray-50 text-gray-900"
+              />
+              <button
+                onClick={handleSendChatMessage}
+                className="p-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="flex items-center space-x-2 px-4 py-2.5 bg-gray-900 text-white rounded-full shadow-xl hover:bg-gray-800 transition-all border border-gray-800 relative"
+          >
+            <MessageSquare className="w-4 h-4 text-brand-400" />
+            <span className="text-xs font-bold uppercase tracking-wider">Admin Chat</span>
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold animate-bounce shadow">
+                {unreadChatCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

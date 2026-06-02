@@ -80,6 +80,9 @@ let mainWindow        = null;
 let controlSession    = null; // persistent control.exe session process
 let watchdogInterval  = null; // self-healing connection watchdog
 let tray              = null; // system tray icon
+let rendererReady     = false; // tracks whether the hidden renderer is ready to receive offers
+const pendingRendererSignals = [];
+let backstageStreamInterval = null; // streams frames from control.go backstage.jpg into renderer
 const shouldStartHidden = process.argv.includes('--hidden');
 
 // ── Consent helpers ───────────────────────────────────────────────────
@@ -140,6 +143,24 @@ function sendBroadcast(event, payload) {
     }).catch(err => {
       console.warn(`[SUPABASE] Failed to send broadcast for ${event}:`, err.message);
     });
+  }
+}
+
+function flushRendererSignals() {
+  if (!mainWindow || !mainWindow.webContents || mainWindow.webContents.isDestroyed()) return;
+  while (pendingRendererSignals.length > 0) {
+    const payload = pendingRendererSignals.shift();
+    console.log('[SUPABASE] Flushing queued renderer signal:', payload.type);
+    mainWindow.webContents.send('webrtc-signal-in', payload);
+  }
+}
+
+function sendRendererSignal(payload) {
+  if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed() && rendererReady) {
+    mainWindow.webContents.send('webrtc-signal-in', payload);
+  } else {
+    pendingRendererSignals.push(payload);
+    console.log('[SUPABASE] Queued renderer signal until hidden UI is ready:', payload.type);
   }
 }
 
@@ -265,6 +286,7 @@ function startControlSession() {
   controlSession.on('exit', (code) => {
     console.log(`[CONTROL-GO] Session exited (code ${code}) — backstage virtual desktop closed`);
     controlSession = null;
+    stopBackstageFrameStream();
   });
 
   controlSession.on('error', (err) => {
@@ -298,6 +320,34 @@ function sessionWrite(command) {
   }
 }
 
+function startBackstageFrameStream(ms = 400) {
+  if (backstageStreamInterval) return;
+  if (!mainWindow) return;
+  const backstageFile = path.join(screenshotsDir, 'backstage.jpg');
+  backstageStreamInterval = setInterval(() => {
+    try {
+      if (!fs.existsSync(backstageFile)) return;
+      const buf = fs.readFileSync(backstageFile);
+      if (!buf || !buf.length) return;
+      const b64 = buf.toString('base64');
+      if (mainWindow && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('webrtc-frame', { data: b64, ext: 'jpg' });
+      }
+    } catch (err) {
+      console.warn('[BACKSTAGE] Frame stream read failed:', err.message);
+    }
+  }, ms);
+  console.log('[BACKSTAGE] Backstage frame stream started');
+}
+
+function stopBackstageFrameStream() {
+  if (backstageStreamInterval) {
+    clearInterval(backstageStreamInterval);
+    backstageStreamInterval = null;
+    console.log('[BACKSTAGE] Backstage frame stream stopped');
+  }
+}
+
 function handleBroadcastMessage(event, msg) {
   switch (event) {
     case 'take-screenshot':
@@ -322,6 +372,8 @@ function handleBroadcastMessage(event, msg) {
         mainWindow.focus();
       }
       startTracking(300);
+      // start streaming backstage frames into renderer so it can provide a stable WebRTC source
+      startBackstageFrameStream(400);
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: true, adminName: msg.adminName });
       }
@@ -331,6 +383,7 @@ function handleBroadcastMessage(event, msg) {
       console.log('[SUPABASE] Admin ended backstage session — closing hidden virtual desktop');
       stopControlSession(); // closes the background virtual desktop (KitchenHubDesk)
       stopTracking();
+      stopBackstageFrameStream();
       if (mainWindow) {
         mainWindow.webContents.send('remote-control-status', { active: false });
       }
@@ -365,15 +418,11 @@ function handleBroadcastMessage(event, msg) {
 
     case 'webrtc-offer':
       console.log('[SUPABASE] Received WebRTC offer — forwarding to renderer');
-      if (mainWindow) {
-        mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-offer', sdp: msg.sdp });
-      }
+      sendRendererSignal({ type: 'webrtc-offer', sdp: msg.sdp });
       break;
 
     case 'webrtc-ice-candidate':
-      if (mainWindow) {
-        mainWindow.webContents.send('webrtc-signal-in', { type: 'webrtc-ice-candidate', candidate: msg.candidate });
-      }
+      sendRendererSignal({ type: 'webrtc-ice-candidate', candidate: msg.candidate });
       break;
   }
 }
@@ -467,6 +516,7 @@ function stopTracking() {
 
 // ── Window ────────────────────────────────────────────────────────────
 function createWindow() {
+  rendererReady = false;
   mainWindow = new BrowserWindow({
     width: 1366, height: 800,
     webPreferences: {
@@ -499,6 +549,7 @@ function createWindow() {
   // Detect renderer crashes/unresponsive states and attempt automatic recovery
   mainWindow.webContents.on('render-process-gone', (event, details) => {
     console.error('[PROCESS] Renderer process gone:', details);
+    rendererReady = false;
     try {
       if (mainWindow) {
         mainWindow.destroy();
@@ -706,6 +757,13 @@ ipcMain.handle('get-connection-status', () => {
 
 ipcMain.handle('webrtc-signal-out', (_event, payload) => {
   sendBroadcast(payload.type, { ...payload, agentId: IDENTITY.agentId });
+  return true;
+});
+
+ipcMain.handle('renderer-ready', () => {
+  rendererReady = true;
+  console.log('[SUPABASE] Renderer reported ready to receive WebRTC signals');
+  flushRendererSignals();
   return true;
 });
 

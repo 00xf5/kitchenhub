@@ -27,7 +27,7 @@ Open PowerShell
 Browse files
 Edit registry
 View event logs
-Manage services
+Manage services 
 Perform maintenance
 
 Without taking over the user's visible desktop. The user may continue working while the technician works in the background.
