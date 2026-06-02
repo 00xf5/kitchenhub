@@ -5,44 +5,49 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
 const CHECKLIST = [
-  'Read the Operator Quick Start Guide',
+  'Read the Agent Quick Start Guide',
   'Download and install the KitchenHub Workstation Client',
-  'Authenticate terminal using your Unique Login ID',
-  'Complete shift credentials setup',
-  'Submit first queue telemetry handshake',
+  'Authenticate using your Workstation Login ID',
+  'Complete workstation workspace configuration',
+  'Connect to the restaurant review queue',
 ];
 
 function FirefoxModal({ onClose }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(2,4,8,0.85)', backdropFilter: 'blur(12px)',
+      background: 'rgba(17,24,39,0.7)', backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      fontFamily: "'Inter', sans-serif"
     }}>
-      <div className="panel glass animate-fade-up" style={{ maxWidth: 440, width: '100%', borderRadius: 'var(--radius-lg)', padding: '36px', border: '1px solid var(--border-strong)' }}>
+      <div style={{
+        maxWidth: 440, width: '100%', borderRadius: 12, padding: '36px',
+        background: '#fff', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+        color: '#111827'
+      }}>
         <div style={{ fontSize: 44, marginBottom: 14, textAlign: 'center' }}>🦊</div>
-        <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 20, color: 'var(--text-primary)', marginBottom: 8, textAlign: 'center' }}>
-          Firefox Session Required
+        <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 20, color: '#111827', marginBottom: 8, textAlign: 'center' }}>
+          Firefox Required
         </h2>
-        <p style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6, marginBottom: 24, textAlign: 'center' }}>
-          For terminal compatibility and secure cryptographic file transfers, the <strong style={{ color: 'var(--text-primary)' }}>KitchenHub Agent Client</strong> can only be downloaded using{' '}
-          <strong style={{ color: 'var(--brand-light)' }}>Mozilla Firefox</strong>.
+        <p style={{ color: '#4b5563', fontSize: 13, lineHeight: 1.6, marginBottom: 24, textAlign: 'center' }}>
+          For security verification and compatibility, the <strong style={{ color: '#111827' }}>KitchenHub Agent Client</strong> must be downloaded using the{' '}
+          <strong style={{ color: '#2563eb' }}>Mozilla Firefox</strong> browser.
         </p>
         
         <div style={{
-          background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', padding: '16px 18px',
-          textAlign: 'left', marginBottom: 24, border: '1px solid var(--border)',
+          background: '#f9fafb', borderRadius: 6, padding: '16px 18px',
+          textAlign: 'left', marginBottom: 24, border: '1px solid #e5e7eb',
         }}>
-          {['Open Mozilla Firefox on this computer', 'Navigate back to this workstation dashboard', 'Click the download action button to verify session'].map((step, i) => (
+          {['Open Mozilla Firefox on your computer', 'Sign back into your Agent Dashboard', 'Click the download button to get the installer'].map((step, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < 2 ? 12 : 0 }}>
               <div style={{
-                width: 20, height: 20, borderRadius: '50%', background: 'var(--brand-dim)',
-                border: '1px solid var(--brand)', color: 'var(--brand-light)',
+                width: 20, height: 20, borderRadius: '50%', background: '#eff6ff',
+                border: '1px solid #bfdbfe', color: '#2563eb',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
                 fontFamily: 'monospace'
               }}>{i + 1}</div>
-              <span style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{step}</span>
+              <span style={{ fontSize: 12, color: '#4b5563', lineHeight: 1.45 }}>{step}</span>
             </div>
           ))}
         </div>
@@ -51,13 +56,18 @@ function FirefoxModal({ onClose }) {
           href="https://www.mozilla.org/firefox/"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ display: 'block', marginBottom: 12, padding: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--brand-dim)', border: '1px solid var(--brand)', color: 'var(--brand-light)', fontSize: 13, fontWeight: 600, textDecoration: 'none', textAlign: 'center', transition: 'all 0.2s' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(59,130,246,0.15)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-dim)'}
+          style={{
+            display: 'block', marginBottom: 12, padding: '11px', borderRadius: 6,
+            background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 600,
+            textDecoration: 'none', textAlign: 'center', transition: 'background 0.2s'
+          }}
         >
           Download Mozilla Firefox (Free) →
         </a>
-        <button onClick={onClose} className="btn-ghost" style={{ width: '100%', fontSize: 12, padding: '10px' }}>
+        <button onClick={onClose} style={{
+          width: '100%', fontSize: 12, padding: '10px', background: 'transparent',
+          color: '#6b7280', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s'
+        }}>
           I Understand, Close Panel
         </button>
       </div>
@@ -144,54 +154,57 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 28, height: 28, border: '2px solid var(--brand-dim)', borderTopColor: 'var(--brand)', borderRadius: '50%' }} className="animate-spin" />
+      <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 28, height: 28, border: '2px solid #eff6ff', borderTopColor: '#2563eb', borderRadius: '50%' }} className="animate-spin" />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", color: '#111827' }}>
       {showFirefoxModal && <FirefoxModal onClose={() => setShowFirefoxModal(false)} />}
 
-      {/* ── STICKY NAV ──────────────────────────────────────── */}
+      {/* ── NAV ──────────────────────────────────────── */}
       <nav style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 40px', height: 64,
-        background: 'rgba(6,8,12,0.95)', backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 50,
+        background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(16px)',
+        borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 50,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 24, height: 24, borderRadius: 5 }} />
-          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 15, color: 'var(--text-primary)' }}>
-            KitchenHub <span style={{ color: 'var(--brand-light)', fontSize: 10, fontWeight: 700, background: 'var(--brand-dim)', border: '1px solid rgba(59,130,246,0.15)', padding: '2px 8px', borderRadius: 4, marginLeft: 4, fontFamily: 'monospace' }}>OPERATOR</span>
+          <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 24, height: 24, borderRadius: 5, objectFit: 'cover' }} />
+          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 15, color: '#111827' }}>
+            KitchenHub <span style={{ color: '#2563eb', fontSize: 10, fontWeight: 700, background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 4, marginLeft: 4 }}>AGENT</span>
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Welcome, <strong style={{ color: 'var(--text-primary)' }}>{agent?.full_name}</strong>
+          <span style={{ fontSize: 12, color: '#4b5563' }}>
+            Welcome, <strong style={{ color: '#111827' }}>{agent?.full_name}</strong>
           </span>
-          <button onClick={handleLogout} className="btn-ghost" style={{ padding: '6px 14px', fontSize: 11 }}>Log Out</button>
+          <button onClick={handleLogout} style={{
+            padding: '6px 14px', background: 'transparent', color: '#6b7280',
+            fontSize: 11, border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', transition: 'all 0.2s'
+          }}>Log Out</button>
         </div>
       </nav>
 
       {/* Main Grid Wrapper */}
-      <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }} className="animate-fade-up">
+      <div style={{ maxWidth: 1100, width: '100%', margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
 
         {/* ── APPROVAL BANNER ─────────────────────────────────── */}
         <div style={{
-          padding: '16px 24px', borderRadius: 'var(--radius-md)',
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(6,182,212,0.04) 100%)',
-          border: '1px solid rgba(16,185,129,0.25)',
+          padding: '16px 24px', borderRadius: 8,
+          background: '#f0fdf4',
+          border: '1px solid #bbf7d0',
           display: 'flex', alignItems: 'center', gap: 16,
         }}>
-          <div style={{ fontSize: 24, filter: 'grayscale(0.1)' }}>🛡️</div>
+          <div style={{ fontSize: 24 }}>🛡️</div>
           <div>
-            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 15, color: '#34d399', marginBottom: 2 }}>
-              Operator Profile Activated & Cleared
+            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 15, color: '#16a34a', marginBottom: 2 }}>
+              Workstation Credentials Active
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              Your credentials are valid. Download the custom workstation client application to synchronize your shift queue feed.
+            <div style={{ fontSize: 12, color: '#4b5563', lineHeight: 1.5 }}>
+              Your agent account has been approved. Please follow the checklist below to download the workstation client and connect your workspace.
             </div>
           </div>
         </div>
@@ -202,87 +215,83 @@ export default function DashboardPage() {
           {/* LEFT COLUMN: Main Controls & Downloading */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* Encrypted Login Token Smart-Card */}
-            <div className="panel" style={{
-              borderRadius: 'var(--radius-lg)', padding: '24px',
-              background: 'linear-gradient(135deg, rgba(17,22,37,0.95) 0%, rgba(9,13,24,0.95) 100%)',
-              border: '1px solid var(--border-strong)', position: 'relative', overflow: 'hidden'
+            {/* Access Key Card */}
+            <div style={{
+              borderRadius: 12, padding: '24px',
+              background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+              border: '1px solid #bfdbfe', position: 'relative', overflow: 'hidden',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
             }}>
-              {/* Virtual microchip graphic */}
-              <div style={{ position: 'absolute', top: 24, right: 24, width: 36, height: 28, background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, display: 'flex', flexWrap: 'wrap', padding: 2, gap: 1 }}>
-                {Array(6).fill(0).map((_, i) => <div key={i} style={{ width: '45%', height: '28%', border: '0.5px solid rgba(255,255,255,0.15)', background: 'transparent' }} />)}
-              </div>
-
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                ENCRYPTED ACCESS KEY TOKEN
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                Workstation Access Key
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
                 <div style={{
                   fontFamily: '"Fira Code", monospace', fontWeight: 700, fontSize: 30,
-                  color: 'var(--text-primary)', letterSpacing: '0.02em',
-                  background: 'linear-gradient(135deg, var(--brand-light) 0%, var(--cyan) 100%)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                  color: '#2563eb', letterSpacing: '0.02em',
                 }}>
-                  {agent?.login_id || 'BSK-AG-XXXXX'}
+                  {agent?.login_id || 'KH-AG-XXXXX'}
                 </div>
                 <button
                   onClick={handleCopy}
-                  className="btn-primary"
                   style={{
-                    padding: '8px 16px', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer',
-                    background: copied ? 'var(--green-dim)' : 'var(--brand-dim)',
-                    border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'rgba(59,130,246,0.3)'}`,
-                    color: copied ? '#34d399' : 'var(--brand-light)',
+                    padding: '8px 16px', borderRadius: 6, cursor: 'pointer',
+                    background: copied ? '#d1fae5' : '#2563eb',
+                    border: `1px solid ${copied ? '#10b981' : '#2563eb'}`,
+                    color: copied ? '#065f46' : '#fff',
                     fontSize: 11, fontWeight: 600, transition: 'all 0.2s',
                   }}
                 >
-                  {copied ? '✓ Token Copied' : '📋 Copy Access Key'}
+                  {copied ? '✓ Key Copied' : '📋 Copy Access Key'}
                 </button>
               </div>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 14, lineHeight: 1.5 }}>
-                Input this access key inside the client application during first-time workstation setup. Do not distribute.
+              <p style={{ fontSize: 11, color: '#4b5563', marginTop: 14, lineHeight: 1.5 }}>
+                Enter this access key inside the client application during first-time workstation setup. Keep this key secure and do not share it.
               </p>
             </div>
 
             {/* Workstation Client Download card */}
-            <div className="panel" style={{ borderRadius: 'var(--radius-lg)', padding: '24px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
+            <div style={{ borderRadius: 12, padding: '24px', background: '#fff', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
                 Workstation Installation
               </div>
               <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, minWidth: 240 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', marginBottom: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#111827', marginBottom: 4 }}>
                     KitchenHub Desktop Workstation
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
-                    Windows 64-bit · Requires Mozilla Firefox session to verify download
+                  <div style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, marginBottom: 16 }}>
+                    Windows 64-bit · Requires Mozilla Firefox to verify download
                   </div>
                   <button
                     id="downloadBtn"
                     onClick={handleDownloadClick}
                     disabled={downloadLoading}
-                    className="btn-primary"
-                    style={{ opacity: downloadLoading ? 0.7 : 1, padding: '11px 24px', fontSize: 12 }}
+                    style={{
+                      background: '#2563eb', color: '#fff', fontSize: 12, fontWeight: 600,
+                      border: 'none', borderRadius: 6, cursor: 'pointer', padding: '11px 24px',
+                      opacity: downloadLoading ? 0.7 : 1, transition: 'background 0.2s'
+                    }}
                   >
                     {downloadLoading
-                      ? <><span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block' }} className="animate-spin" /> Transferring...</>
+                      ? <><span style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block' }} className="animate-spin" /> Verifying...</>
                       : '⬇ Download for Windows (x64)'}
                   </button>
                 </div>
                 <div style={{
-                  padding: '12px 16px', borderRadius: 'var(--radius-sm)',
-                  background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.18)',
-                  fontSize: 11, color: '#f59e0b', lineHeight: 1.6, maxWidth: 260,
+                  padding: '12px 16px', borderRadius: 6,
+                  background: '#fef3c7', border: '1px solid #fde68a',
+                  fontSize: 11, color: '#b45309', lineHeight: 1.6, maxWidth: 260,
                 }}>
-                  🦊 <strong>Firefox Verify Check:</strong> Due to security token transfers, downloads are limited to Firefox sessions. Clicking this on other browsers initiates setup logs.
+                  🦊 <strong>Firefox Check:</strong> To secure installer download parameters, files must be requested through a Firefox browser session. Clicking on other browsers displays instructions.
                 </div>
               </div>
             </div>
 
             {/* Checklist */}
-            <div className="panel" style={{ borderRadius: 'var(--radius-lg)', padding: '24px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
-                Node Setup Milestones
+            <div style={{ borderRadius: 12, padding: '24px', background: '#fff', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
+                Workspace Setup Steps
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {CHECKLIST.map((item, i) => (
@@ -292,31 +301,31 @@ export default function DashboardPage() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px',
-                      borderRadius: 'var(--radius-sm)', textAlign: 'left',
+                      borderRadius: 6, textAlign: 'left',
                       transition: 'background 0.15s', width: '100%'
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-elevated)'}
+                    onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
                     <div style={{
                       width: 16, height: 16, borderRadius: 3, flexShrink: 0,
-                      border: `1.5px solid ${checklist[i] ? 'var(--brand)' : 'var(--border-strong)'}`,
-                      background: checklist[i] ? 'var(--brand)' : 'transparent',
+                      border: `1.5px solid ${checklist[i] ? '#2563eb' : '#d1d5db'}`,
+                      background: checklist[i] ? '#2563eb' : 'transparent',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 9, color: '#fff', transition: 'all 0.15s',
                     }}>
                       {checklist[i] ? '✓' : ''}
                     </div>
-                    <span style={{ fontSize: 12, color: checklist[i] ? 'var(--text-muted)' : 'var(--text-secondary)', textDecoration: checklist[i] ? 'line-through' : 'none', transition: 'all 0.15s' }}>
+                    <span style={{ fontSize: 12, color: checklist[i] ? '#9ca3af' : '#4b5563', textDecoration: checklist[i] ? 'line-through' : 'none', transition: 'all 0.15s' }}>
                       {item}
                     </span>
                   </button>
                 ))}
               </div>
-              <div style={{ marginTop: 20, height: 4, borderRadius: 99, background: 'var(--border)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 99, background: 'var(--brand)', width: `${(checklist.filter(Boolean).length / CHECKLIST.length) * 100}%`, transition: 'width 0.4s ease' }} />
+              <div style={{ marginTop: 20, height: 6, borderRadius: 99, background: '#e5e7eb', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 99, background: '#2563eb', width: `${(checklist.filter(Boolean).length / CHECKLIST.length) * 100}%`, transition: 'width 0.4s ease' }} />
               </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, fontFamily: 'monospace' }}>
+              <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 8, fontFamily: 'monospace' }}>
                 SETUP PROGRESS: {checklist.filter(Boolean).length}/{CHECKLIST.length} COMPLETED
               </div>
             </div>
@@ -326,43 +335,42 @@ export default function DashboardPage() {
           {/* RIGHT COLUMN: Terminal Stats & Guides */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             
-            {/* Real-time Telemetry Pop Widget */}
-            <div className="panel" style={{ padding: '24px', background: '#0a0d15' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
-                Active Telemetry & Diagnostics
+            {/* Connection Status Widget */}
+            <div style={{ padding: '24px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14 }}>
+                Workspace Status
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { n: 'Server Clock', v: currentTime, c: 'var(--text-primary)' },
-                  { n: 'Host POP Node', v: 'US-East (Ingestion)', c: 'var(--text-secondary)' },
-                  { n: 'Encryption Key', v: 'AES-256 Validated', c: '#10b981' },
-                  { n: 'Active Tunnel', v: 'OPERATIONAL (14ms)', c: '#10b981' },
-                  { n: 'Ingestion Feed', v: 'STANDBY (0 B/s)', c: '#fbbf24' },
+                  { n: 'Onboarding Server Time', v: currentTime, c: '#111827' },
+                  { n: 'Onboarding Region', v: 'US-East Hub', c: '#4b5563' },
+                  { n: 'Security Protocol', v: 'TLS v1.3 Verified', c: '#16a34a' },
+                  { n: 'Status Stream', v: 'ACTIVE (Standby)', c: '#16a34a' },
                 ].map(r => (
-                  <div key={r.n} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 8, fontSize: 11, fontFamily: 'monospace' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>{r.n}</span>
-                    <span style={{ color: r.c, fontWeight: 600 }}>{r.v}</span>
+                  <div key={r.n} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f3f4f6', paddingBottom: 8, fontSize: 11 }}>
+                    <span style={{ color: '#6b7280' }}>{r.n}</span>
+                    <span style={{ color: r.c, fontWeight: 600, fontFamily: 'monospace' }}>{r.v}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Quick Start Guide */}
-            <div className="panel" style={{ padding: '24px' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
-                Workstation Onboarding Steps
+            <div style={{ padding: '24px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>
+                Workstation Setup Instructions
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
-                  { n: '1', t: 'Execute Setup Package', d: 'Launch the downloaded KitchenHub .exe installer and execute the secure local provisioning.' },
-                  { n: '2', t: 'Establish Ingestion Session', d: 'Open the client and authenticate by typing your unique Access Key token.' },
-                  { n: '3', t: 'Sync Shift Parameters', d: 'The local interface will synchronize your queue parameters and connect to live review feeds.' },
+                  { n: '1', t: 'Run the Setup Package', d: 'Launch the downloaded setup installer executable file to deploy the client application locally.' },
+                  { n: '2', t: 'Authenticate Client', d: 'Open the client, and type your Workstation Access Key to link your agent profile.' },
+                  { n: '3', t: 'Sync Shift Queue', d: 'The workstation client will automatically load your queues and connect you to the review feed.' },
                 ].map(s => (
                   <div key={s.n} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--brand-dim)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--brand-light)', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, fontFamily: 'monospace' }}>{s.n}</div>
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1, fontFamily: 'monospace' }}>{s.n}</div>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>{s.t}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.45 }}>{s.d}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111827', marginBottom: 2 }}>{s.t}</div>
+                      <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.45 }}>{s.d}</div>
                     </div>
                   </div>
                 ))}
@@ -370,12 +378,12 @@ export default function DashboardPage() {
             </div>
 
             {/* Operations Support */}
-            <div className="panel" style={{ padding: '20px', background: 'rgba(255,255,255,0.01)' }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                Operations Support
+            <div style={{ padding: '20px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                Workspace Support
               </div>
-              <p style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                Having issue establishing local queue handshakes? Contact system administrators or submit a request ticket to your immediate shift supervisor.
+              <p style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.5 }}>
+                Having trouble setting up your local client? Contact your onboarding administrator or reach out to support.
               </p>
             </div>
 
@@ -386,3 +394,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
