@@ -270,8 +270,18 @@ function useWebRTCOffer(agentId, active, sendWS, dataChannelRef, onDataChannelSt
       iceServers: ICE_SERVERS,
       bundlePolicy: 'max-bundle',
       iceCandidatePoolSize: 1,
+      iceTransportPolicy: 'all',
+      rtcpMuxPolicy: 'require',
+      sdpSemantics: 'unified-plan',
     });
     pcRef.current = pc;
+
+    pc.onicecandidateerror = (err) => {
+      console.warn('[WebRTC] ICE candidate error:', err);
+    };
+    pc.onicegatheringstatechange = () => {
+      console.log('[WebRTC] ICE gathering state:', pc.iceGatheringState);
+    };
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -305,25 +315,68 @@ function useWebRTCOffer(agentId, active, sendWS, dataChannelRef, onDataChannelSt
       }
     };
 
-    // Create a data channel for remote-control events (mouse/keyboard/clipboard)
+    // Create separate data channels for low-latency mouse input and reliable control events.
     try {
-      // Create an unreliable, unordered data channel for the lowest latency
-      const dc = pc.createDataChannel('remote-control', { ordered: false, maxRetransmits: 0 });
-      dc.onopen = () => {
-        console.log('[WebRTC] Remote control channel open');
-        if (dataChannelRef) dataChannelRef.current = dc;
-        if (onDataChannelStateChange) onDataChannelStateChange(true);
-        // start ping/pong for latency monitoring
-        dc.binaryType = 'arraybuffer';
-        const pingPayload = { type: 'ping', timestamp: Date.now() };
-        try { dc.send(JSON.stringify(pingPayload)); } catch (err) { console.warn('[RemoteControl] Ping send failed:', err.message); }
+      const fastChannel = pc.createDataChannel('remote-control-fast', { ordered: false, maxRetransmits: 0 });
+      const reliableChannel = pc.createDataChannel('remote-control-reliable');
+      let fastOpen = false;
+      let reliableOpen = false;
+      let pingTimer = null;
+
+      function updateDataChannelState() {
+        if (dataChannelRef) {
+          const open = fastOpen || reliableOpen;
+          dataChannelRef.current = { fast: fastChannel, reliable: reliableChannel };
+          if (onDataChannelStateChange) onDataChannelStateChange(open);
+        }
+      }
+
+      fastChannel.binaryType = 'arraybuffer';
+      fastChannel.onopen = () => {
+        fastOpen = true;
+        console.log('[WebRTC] Fast remote-control channel open');
+        updateDataChannelState();
       };
-      dc.onclose = () => {
-        console.log('[WebRTC] Remote control channel closed');
-        if (dataChannelRef) dataChannelRef.current = null;
-        if (onDataChannelStateChange) onDataChannelStateChange(false);
+      fastChannel.onclose = () => {
+        fastOpen = false;
+        console.log('[WebRTC] Fast remote-control channel closed');
+        updateDataChannelState();
       };
-      dc.onmessage = (e) => {
+      fastChannel.onmessage = (e) => {
+        // Fast channel expects only binary mouse events; ignore text unless it's a health ping.
+        if (typeof e.data === 'string') {
+          try {
+            const message = JSON.parse(e.data);
+            if (message.type === 'pong' && message.timestamp && onLatencyUpdate) {
+              onLatencyUpdate(Date.now() - message.timestamp);
+            }
+          } catch (err) {
+            console.warn('[RemoteControl] Fast channel bad message:', err.message);
+          }
+        }
+      };
+
+      reliableChannel.binaryType = 'arraybuffer';
+      reliableChannel.onopen = () => {
+        reliableOpen = true;
+        console.log('[WebRTC] Reliable remote-control channel open');
+        updateDataChannelState();
+        pingTimer = setInterval(() => {
+          if (reliableChannel.readyState === 'open') {
+            reliableChannel.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          }
+        }, 2500);
+      };
+      reliableChannel.onclose = () => {
+        reliableOpen = false;
+        console.log('[WebRTC] Reliable remote-control channel closed');
+        updateDataChannelState();
+        if (pingTimer) {
+          clearInterval(pingTimer);
+          pingTimer = null;
+        }
+      };
+      reliableChannel.onmessage = (e) => {
         try {
           const message = JSON.parse(e.data);
           if (message.type === 'pong' && message.timestamp && onLatencyUpdate) {
@@ -332,16 +385,11 @@ function useWebRTCOffer(agentId, active, sendWS, dataChannelRef, onDataChannelSt
             console.log('[RemoteControl] Message:', message);
           }
         } catch (err) {
-          // If message is binary, ignore here (mouse_move are binary frames)
-          // and let agent handle them. Log otherwise.
-          if (e && e.data && typeof e.data !== 'string') {
-            // binary frame received — ignore in admin (we only send binary)
-          } else {
-            console.warn('[RemoteControl] Bad datachannel message:', err.message);
-          }
+          console.warn('[RemoteControl] Bad reliable channel message:', err.message);
         }
       };
-      if (dataChannelRef) dataChannelRef.current = dc;
+
+      if (dataChannelRef) dataChannelRef.current = { fast: fastChannel, reliable: reliableChannel };
     } catch (err) {
       // Fallback to a lightweight ping channel if remote-control creation fails
       try { pc.createDataChannel('ping'); } catch (e) { /* ignore */ }
@@ -368,7 +416,7 @@ function useWebRTCOffer(agentId, active, sendWS, dataChannelRef, onDataChannelSt
     });
 
     return () => {
-      if (dataChannelRef) dataChannelRef.current = null;
+      if (dataChannelRef) dataChannelRef.current = { fast: null, reliable: null };
       if (onDataChannelStateChange) onDataChannelStateChange(false);
       teardown();
     };
@@ -426,7 +474,7 @@ export default function App() {
   }, []);
 
   // WebRTC offer hook (admin becomes offerer)
-  const dataChannelRef = useRef(null);
+  const dataChannelRef = useRef({ fast: null, reliable: null });
   const { remoteStream, handleAnswer, handleIceCandidate, teardown: teardownWebRTC } = useWebRTCOffer(
     takeoverAgentId,
     !!takeoverAgentId,
@@ -679,52 +727,91 @@ export default function App() {
     const targetY = Math.round((clickY / displayHeight) * naturalHeight);
 
     console.log(`Sending click to ${takeoverAgentId} at: (${targetX}, ${targetY}) on ${naturalWidth}x${naturalHeight} display`);
-    const payload = { type: 'click', x: targetX, y: targetY };
-    // Prefer the low-latency WebRTC data channel when available
-    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-      try {
-        dataChannelRef.current.send(JSON.stringify(payload));
-      } catch (err) {
-        console.warn('[RemoteControl] DataChannel send failed, falling back to broadcast:', err.message);
-        send({ type: 'remote-click', agentId: takeoverAgentId, x: targetX, y: targetY });
-      }
-    } else {
+    const payload = { type: 'click', x: targetX, y: targetY, button: 'left' };
+    sendInputEvent(payload);
+    if (!dataChannelRef.current || (dataChannelRef.current.fast?.readyState !== 'open' && dataChannelRef.current.reliable?.readyState !== 'open')) {
       send({ type: 'remote-click', agentId: takeoverAgentId, x: targetX, y: targetY });
     }
   }, [send, takeoverAgentId, agents]);
 
-  // Send input event via WebRTC data channel with fallback to broadcast
+  const sendOverChannel = (channel, data) => {
+    if (!channel || channel.readyState !== 'open') return false;
+    try {
+      channel.send(data);
+      return true;
+    } catch (err) {
+      console.warn('[RemoteControl] Channel send failed:', err.message);
+      return false;
+    }
+  };
+
   const sendInputEvent = useCallback((payload) => {
     if (!takeoverAgentId) return;
-    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
-      try {
-        // For mouse_move send compact binary frames for lowest latency
-        if (payload.type === 'mouse_move') {
-          const buf = new ArrayBuffer(1 + 2 + 2);
-          const dv = new DataView(buf);
-          dv.setUint8(0, 1); // event id = 1 => mouse_move
-          dv.setUint16(1, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
-          dv.setUint16(3, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
-          dataChannelRef.current.send(buf);
-        } else {
-          dataChannelRef.current.send(JSON.stringify(payload));
+    const channels = dataChannelRef.current || {};
+    const fast = channels.fast;
+    const reliable = channels.reliable;
+
+    const sendBinary = (buf) => sendOverChannel(fast, buf) || sendOverChannel(reliable, buf);
+    const sendJson = (obj) => sendOverChannel(reliable, JSON.stringify(obj));
+
+    switch (payload.type) {
+      case 'mouse_move': {
+        const buf = new ArrayBuffer(1 + 2 + 2);
+        const dv = new DataView(buf);
+        dv.setUint8(0, 1);
+        dv.setUint16(1, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
+        dv.setUint16(3, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
+        if (!sendBinary(buf)) {
+          console.warn('[RemoteControl] mouse_move dropped; no open fast channel');
         }
-      } catch (err) {
-        console.warn('[RemoteControl] DataChannel send failed:', err.message);
+        break;
       }
-    } else {
-      // Fallback for compatibility (limited event types)
-      switch (payload.type) {
-        case 'mouse_move':
-        case 'mouse_down':
-        case 'mouse_up':
-        case 'mouse_wheel':
-          // These don't have broadcast fallback; only work via data channel
-          console.warn('[RemoteControl] Event type not available via fallback:', payload.type);
-          break;
-        default:
-          // Other types handled elsewhere
-          break;
+      case 'mouse_down':
+      case 'mouse_up': {
+        const id = payload.type === 'mouse_down' ? 2 : 3;
+        const buttonMap = { left: 0, middle: 1, right: 2 };
+        const buf = new ArrayBuffer(1 + 1 + 2 + 2);
+        const dv = new DataView(buf);
+        dv.setUint8(0, id);
+        dv.setUint8(1, buttonMap[payload.button] ?? 0);
+        dv.setUint16(2, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
+        dv.setUint16(4, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
+        if (!sendBinary(buf)) {
+          console.warn(`[RemoteControl] ${payload.type} dropped; no open fast channel`);
+        }
+        break;
+      }
+      case 'mouse_wheel': {
+        const buf = new ArrayBuffer(1 + 2 + 2 + 2);
+        const dv = new DataView(buf);
+        dv.setUint8(0, 4);
+        dv.setInt16(1, Math.max(-32768, Math.min(32767, Math.round(payload.deltaY))), true);
+        dv.setUint16(3, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
+        dv.setUint16(5, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
+        if (!sendBinary(buf)) {
+          console.warn('[RemoteControl] mouse_wheel dropped; no open fast channel');
+        }
+        break;
+      }
+      case 'click': {
+        const buttonMap = { left: 0, middle: 1, right: 2 };
+        const buf = new ArrayBuffer(1 + 1 + 2 + 2);
+        const dv = new DataView(buf);
+        dv.setUint8(0, 5);
+        dv.setUint8(1, buttonMap[payload.button] ?? 0);
+        dv.setUint16(2, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
+        dv.setUint16(4, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
+        if (!sendBinary(buf)) {
+          console.warn('[RemoteControl] click dropped; no open fast channel');
+          sendJson(payload);
+        }
+        break;
+      }
+      default: {
+        if (!sendJson(payload)) {
+          console.warn('[RemoteControl] Reliable channel unavailable for', payload.type);
+        }
+        break;
       }
     }
   }, [takeoverAgentId]);

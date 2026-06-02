@@ -324,8 +324,18 @@ function useWebRTCAnswerer() {
             iceServers: ICE_SERVERS,
             bundlePolicy: 'max-bundle',
             iceCandidatePoolSize: 1,
+            iceTransportPolicy: 'all',
+            rtcpMuxPolicy: 'require',
+            sdpSemantics: 'unified-plan',
           });
           pcRef.current = pc;
+
+          pc.onicecandidateerror = (err) => {
+            console.warn('[WebRTC] ICE candidate error (agent):', err);
+          };
+          pc.onicegatheringstatechange = () => {
+            console.log('[WebRTC] ICE gathering state (agent):', pc.iceGatheringState);
+          };
 
           // Add all screen tracks to the connection
           stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -344,41 +354,57 @@ function useWebRTCAnswerer() {
           // Accept a remote-control data channel from admin and forward messages to main for native input
           pc.ondatachannel = (evt) => {
             try {
-                  const ch = evt.channel;
-                  console.log('[WebRTC] Data channel received:', ch.label);
-                  ch.binaryType = 'arraybuffer';
-                  ch.onmessage = (ev) => {
-                    try {
-                      // Binary protocol: first byte = event id
-                      if (ev.data instanceof ArrayBuffer) {
-                        const dv = new DataView(ev.data);
-                        const evtId = dv.getUint8(0);
-                        if (evtId === 1) { // mouse_move
-                          const x = dv.getUint16(1, true);
-                          const y = dv.getUint16(3, true);
-                          const payload = { type: 'mouse_move', x, y };
-                          if (window.electronAPI && window.electronAPI.remoteInput) window.electronAPI.remoteInput(payload);
-                          return;
-                        }
-                        // Unknown binary event — ignore
-                        return;
-                      }
+              const ch = evt.channel;
+              console.log('[WebRTC] Data channel received:', ch.label);
+              ch.binaryType = 'arraybuffer';
 
-                      const payload = JSON.parse(ev.data);
-                      if (payload.type === 'ping') {
-                        if (ch.readyState === 'open') {
-                          ch.send(JSON.stringify({ type: 'pong', timestamp: payload.timestamp }));
-                        }
-                        return;
-                      }
+              ch.onmessage = (ev) => {
+                try {
+                  if (ev.data instanceof ArrayBuffer) {
+                    const dv = new DataView(ev.data);
+                    const evtId = dv.getUint8(0);
+                    let payload = null;
 
-                      if (window.electronAPI && window.electronAPI.remoteInput) {
-                        window.electronAPI.remoteInput(payload);
-                      }
-                    } catch (err) {
-                      console.warn('[RemoteControl] Bad datachannel message:', err.message);
+                    switch (evtId) {
+                      case 1:
+                        payload = { type: 'mouse_move', x: dv.getUint16(1, true), y: dv.getUint16(3, true) };
+                        break;
+                      case 2:
+                        payload = { type: 'mouse_down', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      case 3:
+                        payload = { type: 'mouse_up', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      case 4:
+                        payload = { type: 'mouse_wheel', deltaY: dv.getInt16(1, true), x: dv.getUint16(3, true), y: dv.getUint16(5, true) };
+                        break;
+                      case 5:
+                        payload = { type: 'click', button: ['left', 'middle', 'right'][dv.getUint8(1)] || 'left', x: dv.getUint16(2, true), y: dv.getUint16(4, true) };
+                        break;
+                      default:
+                        return;
                     }
-                  };
+
+                    if (window.electronAPI?.remoteInput) {
+                      window.electronAPI.remoteInput(payload);
+                    }
+                    return;
+                  }
+
+                  const payload = JSON.parse(ev.data);
+                  if (payload.type === 'ping' && ch.readyState === 'open') {
+                    ch.send(JSON.stringify({ type: 'pong', timestamp: payload.timestamp }));
+                    return;
+                  }
+
+                  if (window.electronAPI?.remoteInput) {
+                    window.electronAPI.remoteInput(payload);
+                  }
+                } catch (err) {
+                  console.warn('[RemoteControl] Bad datachannel message:', err.message);
+                }
+              };
+
               ch.onopen = () => console.log('[WebRTC] Remote-control channel open (agent)');
               ch.onclose = () => console.log('[WebRTC] Remote-control channel closed (agent)');
             } catch (err) {
