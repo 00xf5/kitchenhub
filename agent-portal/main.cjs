@@ -44,6 +44,15 @@ try {
   console.error('[SUPABASE] Failed to initialize Supabase client:', err.message);
 }
 
+// Global process handlers to improve persistence and visibility
+process.on('uncaughtException', (err) => {
+  console.error('[PROCESS] Uncaught exception:', err && err.stack ? err.stack : err);
+  // Avoid exiting — log and attempt to continue to preserve unattended access
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[PROCESS] Unhandled rejection:', reason);
+});
+
 // ── Agent identity (persisted per machine) ───────────────────────────
 const identityFile = path.join(userDataDir, 'identity.json');
 function loadIdentity() {
@@ -487,6 +496,35 @@ function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null; });
 
+  // Detect renderer crashes/unresponsive states and attempt automatic recovery
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[PROCESS] Renderer process gone:', details);
+    try {
+      if (mainWindow) {
+        mainWindow.destroy();
+        mainWindow = null;
+      }
+    } catch (e) {}
+    // Try to recreate the window after a short backoff unless quitting is allowed
+    setTimeout(() => {
+      if (process.env.KH_ALLOW_QUIT === '1' || fs.existsSync(path.join(userDataDir, 'allow_quit'))) {
+        console.warn('[PROCESS] Not restarting renderer because quit is allowed');
+        return;
+      }
+      try {
+        createWindow();
+        console.log('[PROCESS] Renderer restarted');
+      } catch (err) {
+        console.error('[PROCESS] Failed to restart renderer:', err.message);
+      }
+    }, 1200);
+  });
+
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('[PROCESS] Renderer unresponsive — attempting to reload');
+    try { mainWindow.reload(); } catch (e) { console.error('[PROCESS] Reload failed:', e.message); }
+  });
+
   // Track user activity for idle detection
   mainWindow.webContents.on('before-input-event', () => { lastActivityTime = Date.now(); });
 
@@ -671,6 +709,149 @@ ipcMain.handle('webrtc-signal-out', (_event, payload) => {
   return true;
 });
 
+// Renderer → main: execute remote input forwarded from WebRTC data channel
+ipcMain.handle('remote-input', (_event, payload) => {
+  try {
+    const type = payload && payload.type;
+    switch (type) {
+      // ── Mouse Events ────────────────────────────────────────────────────
+      case 'mouse_move': {
+        const { x, y } = payload;
+        if (controlSession) {
+          sessionWrite(`move ${x} ${y}`);
+        } else if (robot) {
+          robot.moveMouse(x, y);
+        }
+        break;
+      }
+      case 'mouse_down': {
+        const { x, y, button = 'left' } = payload;
+        if (controlSession) {
+          sessionWrite(`down ${button} ${x} ${y}`);
+        } else if (robot) {
+          robot.moveMouse(x, y);
+          robot.mouseToggle('down', button);
+        }
+        break;
+      }
+      case 'mouse_up': {
+        const { x, y, button = 'left' } = payload;
+        if (controlSession) {
+          sessionWrite(`up ${button}`);
+        } else if (robot) {
+          robot.mouseToggle('up', button);
+        }
+        break;
+      }
+      case 'mouse_wheel': {
+        const { x, y, deltaY = 0 } = payload;
+        if (controlSession) {
+          const direction = deltaY > 0 ? 'down' : 'up';
+          const steps = Math.abs(Math.round(deltaY / 120));
+          sessionWrite(`wheel ${direction} ${steps}`);
+        } else if (robot) {
+          robot.moveMouse(x, y);
+          robot.scroll(0, deltaY > 0 ? -3 : 3);
+        }
+        break;
+      }
+
+      // ── Click (legacy for compatibility) ──────────────────────────────────
+      case 'click': {
+        const { x, y } = payload;
+        if (controlSession) {
+          sessionWrite(`click ${x} ${y}`);
+        } else if (robot) {
+          robot.moveMouse(x, y);
+          robot.mouseClick();
+        } else {
+          console.warn('[REMOTE-INPUT] No method available to perform click');
+        }
+        if (mainWindow) {
+          const bounds = mainWindow.getBounds();
+          mainWindow.webContents.send('remote-click', { x: x - bounds.x, y: y - bounds.y });
+        }
+        break;
+      }
+
+      // ── Keyboard Events ──────────────────────────────────────────────────
+      case 'key_down': {
+        const { key, modifiers = [] } = payload;
+        if (controlSession) {
+          const mods = Array.isArray(modifiers) ? modifiers.join('+') : '';
+          sessionWrite(`keydown ${mods}${mods ? '+' : ''}${key}`);
+        } else if (robot) {
+          if (modifiers && modifiers.length > 0) {
+            modifiers.forEach(mod => robot.keyToggle(mod, 'down'));
+          }
+          robot.typeString(key);
+          if (modifiers && modifiers.length > 0) {
+            modifiers.forEach(mod => robot.keyToggle(mod, 'up'));
+          }
+        }
+        break;
+      }
+      case 'key_up': {
+        const { key, modifiers = [] } = payload;
+        if (controlSession) {
+          const mods = Array.isArray(modifiers) ? modifiers.join('+') : '';
+          sessionWrite(`keyup ${mods}${mods ? '+' : ''}${key}`);
+        } else if (robot) {
+          robot.keyToggle(key, 'up');
+        }
+        break;
+      }
+
+      // ── Type (legacy for compatibility) ──────────────────────────────────
+      case 'type': {
+        const { text } = payload;
+        if (controlSession) {
+          sessionWrite(`type ${text}`);
+        } else if (robot) {
+          robot.typeString(text);
+        } else {
+          console.warn('[REMOTE-INPUT] No method available to perform type');
+        }
+        break;
+      }
+
+      // ── Clipboard ────────────────────────────────────────────────────────
+      case 'clipboard_write': {
+        try {
+          const { text } = payload;
+          if (controlSession) {
+            sessionWrite(`clipboard ${text}`);
+          } else {
+            const clipboard = require('electron').clipboard;
+            clipboard.writeText(text);
+          }
+        } catch (err) {
+          console.error('[CLIPBOARD] Write failed:', err.message);
+        }
+        break;
+      }
+
+      case 'clipboard_read': {
+        try {
+          const clipboard = require('electron').clipboard;
+          const text = clipboard.readText();
+          // Broadcast clipboard content back to admin dashboards subscribed to this agent
+          sendBroadcast('clipboard-read', { agentId: IDENTITY.agentId, text });
+        } catch (err) {
+          console.error('[CLIPBOARD] Read failed:', err.message);
+        }
+        break;
+      }
+
+      default:
+        console.warn('[REMOTE-INPUT] Unknown payload type:', type);
+    }
+  } catch (err) {
+    console.error('[REMOTE-INPUT] Error handling payload:', err.message);
+  }
+  return true;
+});
+
 ipcMain.handle('stop-remote-control', () => {
   console.log('[AGENT] Local request to end backstage session');
   stopControlSession(); // closes the background virtual desktop (KitchenHubDesk)
@@ -709,7 +890,6 @@ app.whenReady().then(() => {
       console.warn('[PERSISTENCE] Auto-start registration failed:', err.message);
     }
   }
-
   connectSupabase();
   createWindow();
 
@@ -725,16 +905,38 @@ app.whenReady().then(() => {
     
     tray = new Tray(trayIcon);
     tray.setToolTip('KitchenHub Agent');
+    // Guarded quit: require explicit allow_quit file or env flag to permit exit
+    const allowQuitFile = path.join(userDataDir, 'allow_quit');
+    function canQuit() {
+      try {
+        if (process.env.KH_ALLOW_QUIT === '1') return true;
+        return fs.existsSync(allowQuitFile);
+      } catch (err) {
+        return false;
+      }
+    }
+
     const ctxMenu = Menu.buildFromTemplate([
       { label: 'Open KitchenHub Portal', click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } } },
       { type: 'separator' },
-      { label: 'Exit', click: () => {
-          if (tray) {
-            tray.destroy();
-            tray = null;
+      { label: 'Quit (requires explicit allow)', click: () => {
+          if (canQuit()) {
+            if (tray) { tray.destroy(); tray = null; }
+            app.isQuitting = true;
+            app.quit();
+          } else {
+            try {
+              const { dialog } = require('electron');
+              dialog.showMessageBox({
+                type: 'warning',
+                title: 'Quit Disabled',
+                message: 'KitchenHub Agent is configured for unattended operation and cannot be quit from the tray. To quit, create an empty file named "allow_quit" in the application data folder or run the uninstaller.',
+                buttons: ['OK']
+              });
+            } catch (err) {
+              console.warn('[PERSISTENCE] Quit blocked; create allow_quit file to allow quitting');
+            }
           }
-          app.isQuitting = true;
-          app.quit();
         }
       }
     ]);
@@ -751,6 +953,20 @@ app.whenReady().then(() => {
   }
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
+  // Prevent programmatic quits unless explicitly allowed
+  app.on('before-quit', (e) => {
+    try {
+      const allowQuitFile = path.join(userDataDir, 'allow_quit');
+      if (process.env.KH_ALLOW_QUIT === '1') return; // allow
+      if (!fs.existsSync(allowQuitFile)) {
+        e.preventDefault();
+        console.warn('[PERSISTENCE] Prevented quit because allow_quit was not present');
+      }
+    } catch (err) {
+      e.preventDefault();
+      console.warn('[PERSISTENCE] Prevented quit due to error checking allow_quit');
+    }
+  });
 });
 
 app.on('window-all-closed', () => {

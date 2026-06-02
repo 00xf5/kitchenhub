@@ -50,4 +50,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onWebRTCSignalIn: (cb) => {
     ipcRenderer.on('webrtc-signal-in', (_e, payload) => cb(payload));
   },
+  // Renderer → main: remote input forwarding (from WebRTC data channel)
+  remoteInput: (payload) => ipcRenderer.invoke('remote-input', payload),
 });

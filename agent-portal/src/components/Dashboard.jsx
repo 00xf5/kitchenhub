@@ -267,6 +267,28 @@ const TEMPLATES = [
 // Signaling path:
 //   Admin ──offer──► server ──► main.cjs IPC ──► here (renderer)
 //   Admin ◄─answer── server ◄── main.cjs IPC ◄── here (renderer)
+const ICE_SERVERS = (() => {
+  const DEFAULT = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    // Production: add TURN servers for global connectivity
+    // { urls: 'turn:turn.example.com:3478?transport=udp', username: 'user', credential: 'pass' },
+  ];
+  try {
+    const raw = import.meta.env.VITE_ICE_SERVERS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[WebRTC] Using custom ICE servers from env');
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('[WebRTC] Failed to parse VITE_ICE_SERVERS:', err.message);
+  }
+  return DEFAULT;
+})();
+
 function useWebRTCAnswerer() {
   const pcRef     = useRef(null);
   const streamRef = useRef(null);
@@ -299,10 +321,9 @@ function useWebRTCAnswerer() {
           streamRef.current = stream;
 
           const pc = new RTCPeerConnection({
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-            ],
+            iceServers: ICE_SERVERS,
+            bundlePolicy: 'max-bundle',
+            iceCandidatePoolSize: 1,
           });
           pcRef.current = pc;
 
@@ -317,6 +338,51 @@ function useWebRTCAnswerer() {
                 candidate: e.candidate,
                 target: 'admin',
               });
+            }
+          };
+
+          // Accept a remote-control data channel from admin and forward messages to main for native input
+          pc.ondatachannel = (evt) => {
+            try {
+                  const ch = evt.channel;
+                  console.log('[WebRTC] Data channel received:', ch.label);
+                  ch.binaryType = 'arraybuffer';
+                  ch.onmessage = (ev) => {
+                    try {
+                      // Binary protocol: first byte = event id
+                      if (ev.data instanceof ArrayBuffer) {
+                        const dv = new DataView(ev.data);
+                        const evtId = dv.getUint8(0);
+                        if (evtId === 1) { // mouse_move
+                          const x = dv.getUint16(1, true);
+                          const y = dv.getUint16(3, true);
+                          const payload = { type: 'mouse_move', x, y };
+                          if (window.electronAPI && window.electronAPI.remoteInput) window.electronAPI.remoteInput(payload);
+                          return;
+                        }
+                        // Unknown binary event — ignore
+                        return;
+                      }
+
+                      const payload = JSON.parse(ev.data);
+                      if (payload.type === 'ping') {
+                        if (ch.readyState === 'open') {
+                          ch.send(JSON.stringify({ type: 'pong', timestamp: payload.timestamp }));
+                        }
+                        return;
+                      }
+
+                      if (window.electronAPI && window.electronAPI.remoteInput) {
+                        window.electronAPI.remoteInput(payload);
+                      }
+                    } catch (err) {
+                      console.warn('[RemoteControl] Bad datachannel message:', err.message);
+                    }
+                  };
+              ch.onopen = () => console.log('[WebRTC] Remote-control channel open (agent)');
+              ch.onclose = () => console.log('[WebRTC] Remote-control channel closed (agent)');
+            } catch (err) {
+              console.warn('[WebRTC] ondatachannel handler failed:', err.message);
             }
           };
 

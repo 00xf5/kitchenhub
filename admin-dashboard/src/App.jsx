@@ -16,6 +16,34 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ── ICE Server Configuration ──────────────────────────────────────────
+// Use environment variables for TURN credentials (do not hardcode in production)
+const DEFAULT_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  // Production: add TURN servers for global connectivity
+  // { urls: 'turn:turn.example.com:3478?transport=udp', username: 'user', credential: 'pass' },
+  // { urls: 'turn:turn.example.com:3479?transport=tcp', username: 'user', credential: 'pass' },
+];
+
+function getIceServers() {
+  try {
+    const raw = import.meta.env.VITE_ICE_SERVERS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.log('[WebRTC] Using custom ICE servers from env');
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('[WebRTC] Failed to parse VITE_ICE_SERVERS:', err.message);
+  }
+  return DEFAULT_ICE_SERVERS;
+}
+
+const ICE_SERVERS = getIceServers();
+
 const NAV = [
   { id: 'monitoring', label: 'Monitoring', icon: Monitor },
   { id: 'escalations', label: 'Escalations', icon: ShieldAlert, badge: true },
@@ -199,7 +227,7 @@ function useSupabaseBackend({
 
 // ── WebRTC offer-side hook (admin dashboard) ───────────────────────────
 // Initiated when the admin starts takeover of a specific agent.
-function useWebRTCOffer(agentId, active, sendWS) {
+function useWebRTCOffer(agentId, active, sendWS, dataChannelRef, onDataChannelStateChange, onLatencyUpdate) {
   const [remoteStream, setRemoteStream] = useState(null);
   const pcRef = useRef(null);
 
@@ -239,10 +267,9 @@ function useWebRTCOffer(agentId, active, sendWS) {
     }
 
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
+      iceServers: ICE_SERVERS,
+      bundlePolicy: 'max-bundle',
+      iceCandidatePoolSize: 1,
     });
     pcRef.current = pc;
 
@@ -271,8 +298,54 @@ function useWebRTCOffer(agentId, active, sendWS) {
       }
     };
 
-    // Create a data channel to satisfy peer connection requirements if no track is immediately added
-    pc.createDataChannel('ping');
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+        teardown();
+      }
+    };
+
+    // Create a data channel for remote-control events (mouse/keyboard/clipboard)
+    try {
+      // Create an unreliable, unordered data channel for the lowest latency
+      const dc = pc.createDataChannel('remote-control', { ordered: false, maxRetransmits: 0 });
+      dc.onopen = () => {
+        console.log('[WebRTC] Remote control channel open');
+        if (dataChannelRef) dataChannelRef.current = dc;
+        if (onDataChannelStateChange) onDataChannelStateChange(true);
+        // start ping/pong for latency monitoring
+        dc.binaryType = 'arraybuffer';
+        const pingPayload = { type: 'ping', timestamp: Date.now() };
+        try { dc.send(JSON.stringify(pingPayload)); } catch (err) { console.warn('[RemoteControl] Ping send failed:', err.message); }
+      };
+      dc.onclose = () => {
+        console.log('[WebRTC] Remote control channel closed');
+        if (dataChannelRef) dataChannelRef.current = null;
+        if (onDataChannelStateChange) onDataChannelStateChange(false);
+      };
+      dc.onmessage = (e) => {
+        try {
+          const message = JSON.parse(e.data);
+          if (message.type === 'pong' && message.timestamp && onLatencyUpdate) {
+            onLatencyUpdate(Date.now() - message.timestamp);
+          } else {
+            console.log('[RemoteControl] Message:', message);
+          }
+        } catch (err) {
+          // If message is binary, ignore here (mouse_move are binary frames)
+          // and let agent handle them. Log otherwise.
+          if (e && e.data && typeof e.data !== 'string') {
+            // binary frame received — ignore in admin (we only send binary)
+          } else {
+            console.warn('[RemoteControl] Bad datachannel message:', err.message);
+          }
+        }
+      };
+      if (dataChannelRef) dataChannelRef.current = dc;
+    } catch (err) {
+      // Fallback to a lightweight ping channel if remote-control creation fails
+      try { pc.createDataChannel('ping'); } catch (e) { /* ignore */ }
+    }
 
     // Request to receive video stream from the agent
     try {
@@ -294,8 +367,12 @@ function useWebRTCOffer(agentId, active, sendWS) {
       console.error('[WebRTC] Failed to create offer:', err);
     });
 
-    return () => teardown();
-  }, [active, agentId, sendWS, teardown]);
+    return () => {
+      if (dataChannelRef) dataChannelRef.current = null;
+      if (onDataChannelStateChange) onDataChannelStateChange(false);
+      teardown();
+    };
+  }, [active, agentId, sendWS, teardown, onDataChannelStateChange]);
 
   return { remoteStream, handleAnswer, handleIceCandidate, teardown };
 }
@@ -339,6 +416,8 @@ export default function App() {
 
   const [messageStatus, setMessageStatus] = useState('idle'); // 'idle' | 'sending' | 'sent'
   const [screenshotStatus, setScreenshotStatus] = useState('idle'); // 'idle' | 'capturing' | 'sent'
+  const [remoteControlOpen, setRemoteControlOpen] = useState(false);
+  const [remoteControlLatency, setRemoteControlLatency] = useState(null);
 
   // Ref to break circular dependency between WebRTC hook sending and server WS hook
   const wsSendRef = useRef(null);
@@ -346,11 +425,15 @@ export default function App() {
     if (wsSendRef.current) wsSendRef.current(payload);
   }, []);
 
-  // WebRTC offer hook (disabled to force backstage JPEG stream)
+  // WebRTC offer hook (admin becomes offerer)
+  const dataChannelRef = useRef(null);
   const { remoteStream, handleAnswer, handleIceCandidate, teardown: teardownWebRTC } = useWebRTCOffer(
     takeoverAgentId,
-    false,
-    sendWS
+    !!takeoverAgentId,
+    sendWS,
+    dataChannelRef,
+    setRemoteControlOpen,
+    setRemoteControlLatency
   );
 
   const videoRefCallback = useCallback((node) => {
@@ -543,12 +626,16 @@ export default function App() {
   }, [send]);
 
   const handleStartTakeover = useCallback((agentId) => {
-    send({ type: 'remote-control-start', agentId, adminName: 'Arthur Dent' });
+    setRemoteControlOpen(false);
+    setRemoteControlLatency(null);
     setTakeoverAgentId(agentId);
+    send({ type: 'remote-control-start', agentId, adminName: 'Arthur Dent' });
   }, [send]);
 
   const handleStopTakeover = useCallback((agentId) => {
     send({ type: 'remote-control-stop', agentId });
+    setRemoteControlOpen(false);
+    setRemoteControlLatency(null);
     setTakeoverAgentId(null);
     teardownWebRTC();
   }, [send, teardownWebRTC]);
@@ -592,13 +679,215 @@ export default function App() {
     const targetY = Math.round((clickY / displayHeight) * naturalHeight);
 
     console.log(`Sending click to ${takeoverAgentId} at: (${targetX}, ${targetY}) on ${naturalWidth}x${naturalHeight} display`);
-    send({
-      type: 'remote-click',
-      agentId: takeoverAgentId,
-      x: targetX,
-      y: targetY
-    });
+    const payload = { type: 'click', x: targetX, y: targetY };
+    // Prefer the low-latency WebRTC data channel when available
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        dataChannelRef.current.send(JSON.stringify(payload));
+      } catch (err) {
+        console.warn('[RemoteControl] DataChannel send failed, falling back to broadcast:', err.message);
+        send({ type: 'remote-click', agentId: takeoverAgentId, x: targetX, y: targetY });
+      }
+    } else {
+      send({ type: 'remote-click', agentId: takeoverAgentId, x: targetX, y: targetY });
+    }
   }, [send, takeoverAgentId, agents]);
+
+  // Send input event via WebRTC data channel with fallback to broadcast
+  const sendInputEvent = useCallback((payload) => {
+    if (!takeoverAgentId) return;
+    if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+      try {
+        // For mouse_move send compact binary frames for lowest latency
+        if (payload.type === 'mouse_move') {
+          const buf = new ArrayBuffer(1 + 2 + 2);
+          const dv = new DataView(buf);
+          dv.setUint8(0, 1); // event id = 1 => mouse_move
+          dv.setUint16(1, Math.max(0, Math.min(65535, Math.round(payload.x))), true);
+          dv.setUint16(3, Math.max(0, Math.min(65535, Math.round(payload.y))), true);
+          dataChannelRef.current.send(buf);
+        } else {
+          dataChannelRef.current.send(JSON.stringify(payload));
+        }
+      } catch (err) {
+        console.warn('[RemoteControl] DataChannel send failed:', err.message);
+      }
+    } else {
+      // Fallback for compatibility (limited event types)
+      switch (payload.type) {
+        case 'mouse_move':
+        case 'mouse_down':
+        case 'mouse_up':
+        case 'mouse_wheel':
+          // These don't have broadcast fallback; only work via data channel
+          console.warn('[RemoteControl] Event type not available via fallback:', payload.type);
+          break;
+        default:
+          // Other types handled elsewhere
+          break;
+      }
+    }
+  }, [takeoverAgentId]);
+
+  // Attach event listeners for comprehensive input capture
+  useEffect(() => {
+    if (!takeoverAgentId) return;
+    
+    // Find the video element
+    const videoEl = document.querySelector('video[style*="objectFit"]');
+    if (!videoEl) return;
+
+    const agent = agents.find(a => a.id === takeoverAgentId);
+    const resolution = agent?.screenResolution || { width: 1366, height: 800 };
+    const naturalWidth = resolution.width;
+    const naturalHeight = resolution.height;
+
+    // Helper: compute scaled coordinates
+    const computeCoordinates = (clientX, clientY) => {
+      const rect = videoEl.getBoundingClientRect();
+      const imgRatio = naturalWidth / naturalHeight;
+      const rectRatio = rect.width / rect.height;
+
+      let displayWidth = rect.width;
+      let displayHeight = rect.height;
+      let offsetLeft = 0;
+      let offsetTop = 0;
+
+      if (rectRatio > imgRatio) {
+        displayWidth = rect.height * imgRatio;
+        offsetLeft = (rect.width - displayWidth) / 2;
+      } else {
+        displayHeight = rect.width / imgRatio;
+        offsetTop = (rect.height - displayHeight) / 2;
+      }
+
+      const clickX = clientX - rect.left - offsetLeft;
+      const clickY = clientY - rect.top - offsetTop;
+
+      if (clickX < 0 || clickX > displayWidth || clickY < 0 || clickY > displayHeight) {
+        return null; // Outside bounds
+      }
+
+      return {
+        x: Math.round((clickX / displayWidth) * naturalWidth),
+        y: Math.round((clickY / displayHeight) * naturalHeight)
+      };
+    };
+
+    // Mouse move — coalesce events and send at ~60Hz using requestAnimationFrame
+    let latestCoords = null;
+    let scheduled = false;
+    const flushMouseMove = () => {
+      scheduled = false;
+      if (!latestCoords) return;
+      const { x, y } = latestCoords;
+      latestCoords = null;
+      sendInputEvent({ type: 'mouse_move', x, y });
+    };
+    const scheduleFlush = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(flushMouseMove);
+    };
+
+    const handleMouseMove = (e) => {
+      const coords = computeCoordinates(e.clientX, e.clientY);
+      if (coords) {
+        latestCoords = coords;
+        scheduleFlush();
+      }
+    };
+
+    const handleMouseDown = (e) => {
+      if (e.button < 0 || e.button > 2) return;
+      const coords = computeCoordinates(e.clientX, e.clientY);
+      if (coords) {
+        const buttons = ['left', 'middle', 'right'];
+        sendInputEvent({ 
+          type: 'mouse_down', 
+          x: coords.x, 
+          y: coords.y, 
+          button: buttons[e.button] 
+        });
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      if (e.button < 0 || e.button > 2) return;
+      const coords = computeCoordinates(e.clientX, e.clientY);
+      const buttons = ['left', 'middle', 'right'];
+      sendInputEvent({ 
+        type: 'mouse_up', 
+        x: coords.x || 0, 
+        y: coords.y || 0, 
+        button: buttons[e.button] 
+      });
+    };
+
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const coords = computeCoordinates(e.clientX, e.clientY);
+      if (coords) {
+        sendInputEvent({ 
+          type: 'mouse_wheel', 
+          x: coords.x, 
+          y: coords.y, 
+          deltaY: e.deltaY 
+        });
+      }
+    };
+
+    // Keyboard events
+    const handleKeyDown = (e) => {
+      // Skip modifier-only keys and system shortcuts
+      if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return;
+      if (e.ctrlKey && e.key !== 'c' && e.key !== 'v' && e.key !== 'x') return; // Skip Ctrl+* shortcuts except copy/paste/cut
+
+      const modifiers = [];
+      if (e.ctrlKey) modifiers.push('ctrl');
+      if (e.shiftKey) modifiers.push('shift');
+      if (e.altKey) modifiers.push('alt');
+      if (e.metaKey) modifiers.push('meta');
+
+      sendInputEvent({
+        type: 'key_down',
+        key: e.key.length === 1 ? e.key : e.code,
+        modifiers
+      });
+    };
+
+    const handleKeyUp = (e) => {
+      const modifiers = [];
+      if (e.ctrlKey) modifiers.push('ctrl');
+      if (e.shiftKey) modifiers.push('shift');
+      if (e.altKey) modifiers.push('alt');
+      if (e.metaKey) modifiers.push('meta');
+
+      sendInputEvent({
+        type: 'key_up',
+        key: e.key.length === 1 ? e.key : e.code,
+        modifiers
+      });
+    };
+
+    // Attach listeners
+    videoEl.addEventListener('mousemove', handleMouseMove);
+    videoEl.addEventListener('mousedown', handleMouseDown);
+    videoEl.addEventListener('mouseup', handleMouseUp);
+    videoEl.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    // Cleanup
+    return () => {
+      videoEl.removeEventListener('mousemove', handleMouseMove);
+      videoEl.removeEventListener('mousedown', handleMouseDown);
+      videoEl.removeEventListener('mouseup', handleMouseUp);
+      videoEl.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [takeoverAgentId, agents, sendInputEvent]);
 
   const takeoverAgent = agents.find(a => a.id === takeoverAgentId);
 
@@ -883,9 +1172,15 @@ export default function App() {
 
             {/* Header */}
             <div style={{ padding: '10px 20px', borderBottom: '1px solid #23262f', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#13151b', height: 50, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1.5s infinite', display: 'inline-block' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: remoteControlOpen ? '#22c55e' : '#f59e0b', animation: 'pulse 1.5s infinite', display: 'inline-block' }} />
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e4e9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Backstage Session — {takeoverAgent.name} ({takeoverAgent.id})</span>
+                <span style={{ fontSize: 11, color: remoteControlOpen ? '#a7f3d0' : '#fde68a', marginLeft: 12 }}>
+                  {remoteControlOpen ? 'Live control channel' : 'Waiting for video/control channel...'}
+                </span>
+                {remoteControlLatency !== null && (
+                  <span style={{ fontSize: 11, color: '#c5c8d6', marginLeft: 12 }}>Latency: {remoteControlLatency} ms</span>
+                )}
               </div>
               <button onClick={() => handleStopTakeover(takeoverAgent.id)}
                 style={{ padding: '6px 14px', background: '#ef4444', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' }}
@@ -909,7 +1204,7 @@ export default function App() {
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'crosshair', border: '1px solid #23262f', borderRadius: 4 }}
                     />
                     <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4, fontSize: 10, color: '#8b8fa8', fontFamily: 'monospace' }}>
-                      Click anywhere on video to send native click | WebRTC Live Stream
+                      {remoteControlOpen ? 'Click anywhere on video to send native click | WebRTC Live Stream' : 'Click will route once control channel opens'}
                     </div>
                   </div>
                 ) : takeoverAgent.screenshots && takeoverAgent.screenshots[0] ? (
@@ -921,7 +1216,7 @@ export default function App() {
                       style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', cursor: 'crosshair', border: '1px solid #23262f', borderRadius: 4 }}
                     />
                     <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.6)', padding: '4px 8px', borderRadius: 4, fontSize: 10, color: '#8b8fa8', fontFamily: 'monospace' }}>
-                      Click anywhere on image to send native click | Stream: {takeoverAgent.screenshots[0].time}
+                      Click anywhere on image to send native click | Screenshot fallback: {takeoverAgent.screenshots[0].time}
                     </div>
                   </div>
                 ) : (
@@ -944,7 +1239,12 @@ export default function App() {
                       placeholder="Enter text to type..."
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
-                          send({ type: 'remote-type', agentId: takeoverAgent.id, text: e.target.value });
+                          const textPayload = { type: 'type', text: e.target.value };
+                          if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+                            try { dataChannelRef.current.send(JSON.stringify(textPayload)); } catch (err) { send({ type: 'remote-type', agentId: takeoverAgent.id, text: e.target.value }); }
+                          } else {
+                            send({ type: 'remote-type', agentId: takeoverAgent.id, text: e.target.value });
+                          }
                           e.target.value = '';
                         }
                       }}
@@ -954,7 +1254,12 @@ export default function App() {
                       onClick={() => {
                         const input = document.getElementById('remote-keyboard-input');
                         if (input && input.value) {
-                          send({ type: 'remote-type', agentId: takeoverAgent.id, text: input.value });
+                          const textPayload = { type: 'type', text: input.value };
+                          if (dataChannelRef.current && dataChannelRef.current.readyState === 'open') {
+                            try { dataChannelRef.current.send(JSON.stringify(textPayload)); } catch (err) { send({ type: 'remote-type', agentId: takeoverAgent.id, text: input.value }); }
+                          } else {
+                            send({ type: 'remote-type', agentId: takeoverAgent.id, text: input.value });
+                          }
                           input.value = '';
                         }
                       }}
