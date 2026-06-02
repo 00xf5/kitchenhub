@@ -1,237 +1,229 @@
-'use client';
-import { useState, useEffect } from 'react';
+﻿'use client';
 import Link from 'next/link';
 
+const NAV_LINKS = [
+  { label: 'How It Works', href: '#how-it-works' },
+  { label: 'Features', href: '#features' },
+  { label: 'Sign In', href: '/login' },
+];
+
 const STATS = [
-  { label: 'Ingestion Latency', value: '14ms', status: 'Optimal', desc: 'Secure regional POP response pings.' },
-  { label: 'Active Operator Nodes', value: '96 / 100', status: 'Active', desc: 'Global queue coverage metrics.' },
-  { label: 'Clearance Status', value: 'Encrypted', status: 'Validated', desc: 'Heartbeat stream fully ciphered.' },
-  { label: 'Central Ingestion', value: 'Nominal', status: 'Stable', desc: 'Shift ticket queue volumes.' },
+  { value: '24/7', label: 'Shift Coverage' },
+  { value: '100%', label: 'Remote Operations' },
+  { value: '< 24h', label: 'Review Turnaround' },
+  { value: 'Secure', label: 'Encrypted Ingestion' },
 ];
 
-const capabilities = [
+const FEATURES = [
   {
-    title: 'Distributed Queue Console',
-    desc: 'Access restaurant operations pipelines and customer review streams securely from any desktop node using our optimized client application.'
+    title: 'Queue Management Console',
+    desc: 'A dedicated desktop workstation client gives you direct access to your assigned restaurant review queue. Organized, fast, and purpose-built for high-volume ticket resolution.',
   },
   {
-    title: 'Shift Availability Metrics',
-    desc: 'Select standard high-volume shifts and maintain dedicated network coverage with full transparency on compliance logs.'
+    title: 'Flexible Shift Scheduling',
+    desc: 'Choose from a range of shift windows that match your availability. Full-time, part-time, evenings, or nights — structured coverage options to fit your schedule.',
   },
   {
-    title: 'Provisioned Security Tokens',
-    desc: 'Each operator node receives a unique, manual cryptographic welcome token key to authorize local client handshakes.'
-  }
+    title: 'Encrypted Operator Credentials',
+    desc: 'Every approved operator receives a unique login token generated at onboarding. Your credentials are provisioned manually by the administration team, never auto-issued.',
+  },
+  {
+    title: 'Real-Time Escalation Routing',
+    desc: 'Complex or high-priority disputes are automatically escalated with full audit trails. Stay informed at every stage with structured status updates in the client.',
+  },
+  {
+    title: 'Performance Transparency',
+    desc: 'Monitor resolution rates, shift history, and queue throughput metrics directly within the workstation. Clear visibility into your contribution and standing.',
+  },
+  {
+    title: 'Direct Admin Support',
+    desc: 'A support channel connects you to your designated supervisor. Structured escalation paths mean issues are resolved quickly without lengthy wait times.',
+  },
 ];
 
-const steps = [
-  { num: '01', title: 'Register Profile', desc: 'Submit operator details and contact credentials via the registration portal.' },
-  { num: '02', title: 'Intake Assessment', desc: 'Complete the short experience and shift availability profile.' },
-  { num: '03', title: 'Admin Clearance', desc: 'Operations team validates hardware parameters and provisions your node.' },
-  { num: '04', title: 'Connect Workstation', desc: 'Install the client client app, input your access token, and begin operations.' }
+const STEPS = [
+  {
+    num: 1,
+    title: 'Create Your Account',
+    desc: 'Register with your full name, email address, and a secure password. A verification link will be sent to confirm your identity.',
+  },
+  {
+    num: 2,
+    title: 'Complete Your Profile',
+    desc: 'Provide a brief background on your customer service experience and select your preferred shift availability window.',
+  },
+  {
+    num: 3,
+    title: 'Administrator Review',
+    desc: 'Our operations team reviews your profile and manually provisions your unique desktop login credentials upon approval.',
+  },
+  {
+    num: 4,
+    title: 'Download & Start Working',
+    desc: 'Install the KitchenHub workstation client, sign in with your issued login ID, and begin handling your assigned queue.',
+  },
 ];
 
 export default function LandingPage() {
-  const [systemTime, setSystemTime] = useState('');
-
-  useEffect(() => {
-    setSystemTime(new Date().toTimeString().split(' ')[0]);
-    const timer = setInterval(() => {
-      setSystemTime(new Date().toTimeString().split(' ')[0]);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column', color: 'var(--text-primary)' }}>
+    <div style={{ minHeight: '100vh', background: '#fff', color: '#111827', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
-      {/* ── TOP NAV ────────────────────────────────────────── */}
-      <nav style={{
+      {/* ── NAV ─────────────────────────────────────────────── */}
+      <header style={{
         position: 'sticky', top: 0, zIndex: 100,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 40px', height: 64,
-        background: 'rgba(6, 8, 12, 0.85)',
-        backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid #e5e7eb',
+        background: 'rgba(255,255,255,0.97)',
+        backdropFilter: 'blur(8px)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/logo.png" alt="Bluestar KitchenHub Logo" style={{ width: 24, height: 24, borderRadius: 5 }} />
-          <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 600, fontSize: 15, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-            Bluestar <span style={{ color: 'var(--text-secondary)' }}>KitchenHub</span>
-          </span>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} />
+            <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 17, color: '#111827', letterSpacing: '-0.01em' }}>
+              Bluestar <span style={{ color: '#2563eb' }}>KitchenHub</span>
+            </span>
+          </div>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
+            {NAV_LINKS.map((l) => (
+              <Link key={l.label} href={l.href} style={{ fontSize: 13, fontWeight: 500, color: '#6b7280', textDecoration: 'none' }}>
+                {l.label}
+              </Link>
+            ))}
+            <Link href="/register" style={{ fontSize: 13, fontWeight: 600, color: '#fff', background: '#2563eb', padding: '8px 20px', borderRadius: 6, textDecoration: 'none' }}>
+              Apply Now
+            </Link>
+          </nav>
         </div>
+      </header>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <Link href="/login" style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500, transition: 'color 0.15s' }} onMouseEnter={e => e.currentTarget.style.color = '#fff'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
-            Operator Login
-          </Link>
-          <Link href="/register" className="btn-primary" style={{ padding: '7px 16px', fontSize: 12, borderRadius: 'var(--radius-sm)' }}>
-            Join Operator Network
-          </Link>
-        </div>
-      </nav>
-
-      {/* ── HERO SECTION ───────────────────────────────────── */}
-      <section style={{
-        padding: '120px 40px 60px',
-        textAlign: 'center',
-        position: 'relative',
-        maxWidth: 900,
-        margin: '0 auto',
-        width: '100%'
-      }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 12px', borderRadius: 'var(--radius-full)',
-          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-          fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)',
-          marginBottom: 24, letterSpacing: '0.05em', fontFamily: 'monospace'
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
-          POP STATUS: ONLINE ({systemTime})
-        </div>
-
-        <h1 style={{
-          fontFamily: 'Outfit, sans-serif', fontWeight: 800,
-          fontSize: 'clamp(32px, 5vw, 48px)', lineHeight: 1.15,
-          color: 'var(--text-primary)', marginBottom: 20,
-          letterSpacing: '-0.02em'
-        }}>
-          Become a Bluestar Operations Node.
-        </h1>
-
-        <p style={{
-          fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6,
-          maxWidth: 620, margin: '0 auto 32px',
-        }}>
-          Coordinate assigned restaurant ticket queues, moderate customer reviews, and resolve escalated dispute pipelines. Manage live operations from home using our secure, low-latency client workstation.
-        </p>
-
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link href="/register" className="btn-primary" style={{ padding: '10px 24px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}>
-            Submit Node Application
-          </Link>
-          <Link href="#capabilities" className="btn-ghost" style={{ padding: '9px 22px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}>
-            System Architecture
-          </Link>
-        </div>
-      </section>
-
-      {/* ── ULTRA-CLEAN LIVE METRICS GRID ──────────────────── */}
-      <section style={{ padding: '0 40px 80px', maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-          {STATS.map((stat) => (
-            <div key={stat.label} className="panel" style={{
-              padding: '20px', background: '#090a0f', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {stat.label}
-                </span>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3, fontFamily: 'monospace',
-                  background: stat.status === 'Optimal' || stat.status === 'Active' || stat.status === 'Stable' ? 'rgba(16,185,129,0.06)' : 'rgba(59,130,246,0.06)',
-                  color: stat.status === 'Optimal' || stat.status === 'Active' || stat.status === 'Stable' ? '#34d399' : 'var(--brand-light)',
-                  border: `0.5px solid ${stat.status === 'Optimal' || stat.status === 'Active' || stat.status === 'Stable' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)'}`
-                }}>
-                  {stat.status}
-                </span>
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: '#fff', marginBottom: 4, fontFamily: 'monospace' }}>
-                {stat.value}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                {stat.desc}
-              </div>
+      {/* ── HERO ─────────────────────────────────────────────── */}
+      <section style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '88px 32px 80px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 64, alignItems: 'center' }}>
+          
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '4px 12px', marginBottom: 24 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Now Accepting Applications</span>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── SYSTEM CAPABILITIES (Saas Style Features) ───────── */}
-      <section id="capabilities" style={{ padding: '80px 40px', maxWidth: 1000, margin: '0 auto', width: '100%', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 24, color: 'var(--text-primary)', marginBottom: 8 }}>
-            Core Systems Capabilities
-          </h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-            Engineered for persistent queue moderation and low-latency command handshakes.
-          </p>
-        </div>
+            <h1 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 44, lineHeight: 1.12, color: '#111827', marginBottom: 20, letterSpacing: '-0.02em' }}>
+              Work From Home.<br />Handle Real Restaurant<br />Operations.
+            </h1>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-          {capabilities.map((c) => (
-            <div key={c.title} className="panel" style={{
-              padding: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 'var(--radius-md)'
-            }}>
-              <h3 style={{ fontWeight: 600, fontSize: 14, color: '#fff', marginBottom: 8 }}>
-                {c.title}
-              </h3>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                {c.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── SPENT TIMELINE ONBOARDING STEPS ─────────────────── */}
-      <section style={{ padding: '80px 40px', background: '#07080c', borderTop: '1px solid rgba(255,255,255,0.04)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', width: '100%' }}>
-          <div style={{ textAlign: 'center', marginBottom: 48 }}>
-            <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 24, color: 'var(--text-primary)', marginBottom: 8 }}>
-              Operator Provisioning Timeline
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-              Four simple verification stages to activate your operations node key.
+            <p style={{ fontSize: 15, color: '#4b5563', lineHeight: 1.7, marginBottom: 32, maxWidth: 480 }}>
+              Join the Bluestar KitchenHub remote operations network. Manage assigned restaurant review queues, resolve customer disputes, and maintain brand standards — entirely from your own workstation.
             </p>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <Link href="/register" style={{ fontSize: 14, fontWeight: 600, color: '#fff', background: '#2563eb', padding: '12px 28px', borderRadius: 6, textDecoration: 'none', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
+                Apply for a Position
+              </Link>
+              <Link href="#how-it-works" style={{ fontSize: 14, fontWeight: 500, color: '#374151', background: '#fff', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', border: '1px solid #d1d5db' }}>
+                See How It Works
+              </Link>
+            </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20 }}>
-            {steps.map((s) => (
-              <div key={s.num} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 12, color: 'var(--text-muted)' }}>
-                  {s.num} // STAGE
-                </span>
-                <h3 style={{ fontWeight: 600, fontSize: 14, color: '#fff' }}>
-                  {s.title}
-                </h3>
-                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {s.desc}
-                </p>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #f3f4f6' }}>
+              Network Operations Overview
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 28 }}>
+              {STATS.map((s) => (
+                <div key={s.label}>
+                  <div style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 800, fontSize: 30, color: '#111827', lineHeight: 1, marginBottom: 6 }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid #f3f4f6', fontSize: 12, color: '#6b7280', lineHeight: 1.65 }}>
+              Operator profiles are reviewed and approved manually by our operations administrators. You will receive your unique workstation credentials upon approval.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ─────────────────────────────────────────── */}
+      <section id="features" style={{ borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 32px' }}>
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Platform Features</div>
+            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 30, color: '#111827', letterSpacing: '-0.01em', maxWidth: 520, lineHeight: 1.2 }}>
+              Everything you need to run a productive remote shift.
+            </h2>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: '#e5e7eb', border: '1px solid #e5e7eb', borderRadius: 10, overflow: 'hidden' }}>
+            {FEATURES.map((f) => (
+              <div key={f.title} style={{ background: '#fff', padding: '28px 26px' }}>
+                <h3 style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 8 }}>{f.title}</h3>
+                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.65 }}>{f.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── MINIMALIST CTA ──────────────────────────────────── */}
-      <section style={{ padding: '80px 40px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
-          <h2 style={{ fontFamily: 'Outfit, sans-serif', fontWeight: 700, fontSize: 22, color: 'var(--text-primary)', marginBottom: 8 }}>
-            Initialize Security Assessment
-          </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
-            Confirm node parameters and shift availability. Operator profiles are manually reviewed by network administrators to provision custom cryptographic歡迎 packets.
-          </p>
-          <Link href="/register" className="btn-primary" style={{ padding: '10px 28px', fontSize: 13, borderRadius: 'var(--radius-sm)' }}>
-            Provision Operator Node →
-          </Link>
+      {/* ── HOW IT WORKS ─────────────────────────────────────── */}
+      <section id="how-it-works" style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 32px' }}>
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Onboarding Process</div>
+            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 30, color: '#111827', letterSpacing: '-0.01em' }}>
+              From application to active in four steps.
+            </h2>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 36 }}>
+            {STEPS.map((s) => (
+              <div key={s.num}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 14, color: '#2563eb' }}>{s.num}</span>
+                </div>
+                <h3 style={{ fontWeight: 600, fontSize: 14, color: '#111827', marginBottom: 8 }}>{s.title}</h3>
+                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.65 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA BAND ─────────────────────────────────────────── */}
+      <section style={{ background: '#1e3a8a' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '72px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, flexWrap: 'wrap' }}>
+          <div>
+            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontWeight: 700, fontSize: 26, color: '#fff', marginBottom: 8, letterSpacing: '-0.01em' }}>
+              Ready to join the operations team?
+            </h2>
+            <p style={{ fontSize: 14, color: '#93c5fd', lineHeight: 1.65, maxWidth: 520 }}>
+              Submit your application today. Our team reviews every profile and responds within one business day with your onboarding details.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexShrink: 0, flexWrap: 'wrap' }}>
+            <Link href="/register" style={{ fontSize: 14, fontWeight: 600, color: '#1e3a8a', background: '#fff', padding: '12px 28px', borderRadius: 6, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              Submit Application
+            </Link>
+            <Link href="/login" style={{ fontSize: 14, fontWeight: 500, color: '#bfdbfe', background: 'transparent', padding: '12px 24px', borderRadius: 6, textDecoration: 'none', border: '1px solid rgba(191,219,254,0.3)', whiteSpace: 'nowrap' }}>
+              Existing Operator Login
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ── FOOTER ───────────────────────────────────────────── */}
-      <footer style={{
-        borderTop: '1px solid rgba(255,255,255,0.04)', padding: '24px 40px', background: '#050608',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace'
-      }}>
-        <span>© 2026 Bluestar KitchenHub Operations Node Network.</span>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <Link href="/login" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Login</Link>
-          <Link href="/register" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Register</Link>
+      <footer style={{ background: '#111827', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <img src="/logo.png" alt="Bluestar KitchenHub" style={{ width: 20, height: 20, borderRadius: 4 }} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af' }}>Bluestar KitchenHub</span>
+          </div>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <Link href="/login" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Operator Login</Link>
+            <Link href="/register" style={{ fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>Register</Link>
+          </div>
+          <span style={{ fontSize: 12, color: '#4b5563' }}>© 2026 Bluestar KitchenHub. All rights reserved.</span>
         </div>
       </footer>
+
     </div>
   );
 }
