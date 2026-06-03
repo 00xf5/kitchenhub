@@ -2,8 +2,7 @@ services:
   - type: web
     name: kitchenhub-agent-backend
     env: go
-    buildCommand: go build -o agent-backend .
-    startCommand: ./agent-backend
+    startCommand: ./app
     envVars:
       - key: AGENT_ID
         sync: false
