@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,23 +19,23 @@ import (
 
 // Win32 APIs
 var (
-	user32                     = syscall.NewLazyDLL("user32.dll")
-	procCreateDesktopW         = user32.NewProc("CreateDesktopW")
-	procSetThreadDesktop       = user32.NewProc("SetThreadDesktop")
-	procGetThreadDesktop       = user32.NewProc("GetThreadDesktop")
-	procCloseDesktop           = user32.NewProc("CloseDesktop")
-	procSetCursorPos           = user32.NewProc("SetCursorPos")
-	procMouseEvent             = user32.NewProc("mouse_event")
-	procSendInput              = user32.NewProc("SendInput")
-	procGetSystemMetrics       = user32.NewProc("GetSystemMetrics")
-	procGetDC                  = user32.NewProc("GetDC")
-	procReleaseDC              = user32.NewProc("ReleaseDC")
-	procWindowFromPoint        = user32.NewProc("WindowFromPoint")
-	procScreenToClient         = user32.NewProc("ScreenToClient")
-	procPostMessageW           = user32.NewProc("PostMessageW")
-	procGetForegroundWindow    = user32.NewProc("GetForegroundWindow")
+	user32                       = syscall.NewLazyDLL("user32.dll")
+	procCreateDesktopW           = user32.NewProc("CreateDesktopW")
+	procSetThreadDesktop         = user32.NewProc("SetThreadDesktop")
+	procGetThreadDesktop         = user32.NewProc("GetThreadDesktop")
+	procCloseDesktop             = user32.NewProc("CloseDesktop")
+	procSetCursorPos             = user32.NewProc("SetCursorPos")
+	procMouseEvent               = user32.NewProc("mouse_event")
+	procSendInput                = user32.NewProc("SendInput")
+	procGetSystemMetrics         = user32.NewProc("GetSystemMetrics")
+	procGetDC                    = user32.NewProc("GetDC")
+	procReleaseDC                = user32.NewProc("ReleaseDC")
+	procWindowFromPoint          = user32.NewProc("WindowFromPoint")
+	procScreenToClient           = user32.NewProc("ScreenToClient")
+	procPostMessageW             = user32.NewProc("PostMessageW")
+	procGetForegroundWindow      = user32.NewProc("GetForegroundWindow")
 	procGetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
-	procGetGUIThreadInfo       = user32.NewProc("GetGUIThreadInfo")
+	procGetGUIThreadInfo         = user32.NewProc("GetGUIThreadInfo")
 
 	gdi32                      = syscall.NewLazyDLL("gdi32.dll")
 	procCreateCompatibleDC     = gdi32.NewProc("CreateCompatibleDC")
@@ -58,9 +59,9 @@ const (
 	KEYEVENTF_UNICODE    = 0x0004
 	KEYEVENTF_KEYUP      = 0x0008
 
-	SM_CXSCREEN = 0
-	SM_CYSCREEN = 1
-	SRCCOPY     = 0x00CC0020
+	SM_CXSCREEN    = 0
+	SM_CYSCREEN    = 1
+	SRCCOPY        = 0x00CC0020
 	DIB_RGB_COLORS = 0
 
 	WM_LBUTTONDOWN = 0x0201
@@ -196,6 +197,15 @@ func typeString(text string, lastHWND uintptr) {
 
 // captureDesktop captures the thread's current desktop into a JPEG file.
 func captureDesktop(outputPath string) error {
+	data, err := captureDesktopToMemory()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(outputPath, data, 0644)
+}
+
+// captureDesktopToMemory captures the thread's current desktop and returns JPEG bytes.
+func captureDesktopToMemory() ([]byte, error) {
 	w, _, _ := procGetSystemMetrics.Call(SM_CXSCREEN)
 	h, _, _ := procGetSystemMetrics.Call(SM_CYSCREEN)
 
@@ -205,19 +215,19 @@ func captureDesktop(outputPath string) error {
 
 	hdcScreen, _, _ := procGetDC.Call(0)
 	if hdcScreen == 0 {
-		return fmt.Errorf("failed to get screen DC")
+		return nil, fmt.Errorf("failed to get screen DC")
 	}
 	defer procReleaseDC.Call(0, hdcScreen)
 
 	hdcMem, _, _ := procCreateCompatibleDC.Call(hdcScreen)
 	if hdcMem == 0 {
-		return fmt.Errorf("failed to create compatible DC")
+		return nil, fmt.Errorf("failed to create compatible DC")
 	}
 	defer procDeleteDC.Call(hdcMem)
 
 	hBitmap, _, _ := procCreateCompatibleBitmap.Call(hdcScreen, w, h)
 	if hBitmap == 0 {
-		return fmt.Errorf("failed to create compatible bitmap")
+		return nil, fmt.Errorf("failed to create compatible bitmap")
 	}
 	defer procDeleteObject.Call(hBitmap)
 
@@ -249,7 +259,7 @@ func captureDesktop(outputPath string) error {
 	)
 
 	if res == 0 {
-		return fmt.Errorf("failed to get bitmap bits")
+		return nil, fmt.Errorf("failed to get bitmap bits")
 	}
 
 	// Convert BGRA to RGBA for Go image encoding
@@ -266,20 +276,12 @@ func captureDesktop(outputPath string) error {
 		}
 	}
 
-	// Create temp output then rename to prevent lock during file read
-	tempPath := outputPath + ".tmp"
-	f, err := os.Create(tempPath)
-	if err != nil {
-		return err
+	// Encode to JPEG in memory buffer
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 60}); err != nil {
+		return nil, err
 	}
-	defer f.Close()
-
-	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 60}); err != nil {
-		return err
-	}
-	f.Close()
-
-	return os.Rename(tempPath, outputPath)
+	return buf.Bytes(), nil
 }
 
 func spawnProcessInDesktop(desktopName, command string) error {
@@ -331,12 +333,6 @@ func main() {
 
 	switch cmd {
 	case "session":
-		if len(os.Args) < 3 {
-			fmt.Println("Usage: control session <screenshotsDir>")
-			os.Exit(1)
-		}
-		screenshotsDir := os.Args[2]
-
 		// Lock main goroutine to OS thread since it attaches to the desktop
 		runtime.LockOSThread()
 
@@ -378,13 +374,20 @@ func main() {
 		fmt.Println("SESSION_READY")
 
 		// 4. Start periodic background capture routine
-		framePath := filepath.Join(screenshotsDir, "backstage.jpg")
+		// Write binary frames to stdout instead of file
 		go func() {
 			runtime.LockOSThread()
 			procSetThreadDesktop.Call(hDesk)
 			for {
-				time.Sleep(300 * time.Millisecond)
-				_ = captureDesktop(framePath)
+				time.Sleep(33 * time.Millisecond) // 30 FPS
+				frameData, err := captureDesktopToMemory()
+				if err != nil {
+					continue
+				}
+				// Write frame size (4 bytes) + frame data to stdout
+				size := uint32(len(frameData))
+				binary.Write(os.Stdout, binary.LittleEndian, &size)
+				os.Stdout.Write(frameData)
 			}
 		}()
 

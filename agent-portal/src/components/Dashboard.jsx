@@ -20,13 +20,23 @@ export default function Dashboard() {
     };
 
     ws.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'frame' && msg.data) {
-          renderFrame(msg.data);
+      if (evt.data instanceof Blob) {
+        // Binary frame data (raw JPEG)
+        renderFrameBlob(evt.data);
+      } else if (evt.data instanceof ArrayBuffer) {
+        // Binary frame data as ArrayBuffer
+        const blob = new Blob([evt.data], { type: 'image/jpeg' });
+        renderFrameBlob(blob);
+      } else {
+        // Fallback for JSON (should not happen with new backend)
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === 'frame' && msg.data) {
+            renderFrame(msg.data);
+          }
+        } catch (err) {
+          console.warn('[Electron] Frame decode error:', err.message);
         }
-      } catch (err) {
-        console.warn('[Electron] Frame decode error:', err.message);
       }
     };
 
@@ -55,6 +65,21 @@ export default function Dashboard() {
       if (!isStreaming) setIsStreaming(true);
     };
     img.src = `data:image/jpeg;base64,${base64Data}`;
+  };
+
+  const renderFrameBlob = (blob) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      if (!isStreaming) setIsStreaming(true);
+    };
+    img.src = url;
   };
 
   // ── Mouse/Keyboard Events ────────────────────────────────
